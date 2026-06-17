@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default-deny catch-all safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Authentication indicators
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      // Check either for the bootstrapped admin email or DB profile role
+      return isSignedIn() && (
+        request.auth.token.email == "playbookstudio79@gmail.com" ||
+        request.auth.token.email == "sohansahustudy@gmail.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+      );
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if (
+        isOwner(userId) && (
+          // Forbid users from escalating their own privilege to admin unless they are the official bootstrap email
+          request.resource.data.role == "customer" || 
+          request.resource.data.email == "playbookstudio79@gmail.com" ||
+          (resource != null && resource.data.role == request.resource.data.role)
+        )
+      ) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Products Collection
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Categories Collection
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Orders Collection
+    match /orders/{orderId} {
+      // Restrict list/get requests to personal orders or administrators
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+  }
+}

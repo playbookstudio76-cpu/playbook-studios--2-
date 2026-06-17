@@ -34,29 +34,29 @@ export default function HomeView({ products, onNavigate }: HomeViewProps) {
         <div className="absolute inset-0 bg-gradient-to-r from-black/25 via-transparent to-black/10 md:from-black/15" />
 
         {/* Dynamic Card Container positioned exactly like Screenshot 2 (Left Bottom) */}
-        <div className="absolute bottom-[48px] left-4 md:left-[64px] bg-white/95 backdrop-blur-[2px] p-6 md:p-12 max-w-[560px] border border-outline-variant duration-500 ease-out transform translate-y-0">
-          <p className="font-label-caps text-[10px] tracking-[0.2em] text-secondary uppercase mb-3">
+        <div className="absolute bottom-4 sm:bottom-[48px] left-4 right-4 sm:right-auto sm:left-[64px] bg-white/95 backdrop-blur-[2px] p-5 sm:p-8 md:p-12 max-w-[560px] border border-outline-variant duration-500 ease-out transform translate-y-0">
+          <p className="font-label-caps text-[9px] sm:text-[10px] tracking-[0.2em] text-secondary uppercase mb-2">
             FALL / WINTER 2026
           </p>
-          <h1 className="font-display-lg text-[32px] md:text-[48px] leading-tight tracking-tight font-medium text-primary mb-4 uppercase">
-            playbook studioS
+          <h1 className="font-display-lg text-[22px] sm:text-[32px] md:text-[48px] leading-tight tracking-tight font-medium text-primary mb-2 sm:mb-4 uppercase">
+            THE NEW STANDARD
           </h1>
-          <p className="font-body-md text-xs md:text-sm text-secondary leading-relaxed mb-8">
-            Redefining modern utility for the urban environment.
+          <p className="font-body-md text-[11px] sm:text-xs md:text-sm text-secondary leading-relaxed mb-4 sm:mb-8 line-clamp-3 sm:line-clamp-none">
+            A study in structured silhouettes and fluid fabrics. Redefining modern utility for the urban environment. Made with premium, wind-resistant double cotton weaving.
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-row gap-2 sm:gap-4">
             <button
               onClick={() => onNavigate('shop')}
-              className="bg-primary text-on-primary font-button-text text-xs uppercase tracking-widest py-4 px-8 select-none hover:bg-opacity-95 transform hover:-translate-y-[1px] transition duration-200"
+              className="flex-1 sm:flex-none bg-primary text-on-primary font-button-text text-[10.5px] sm:text-xs uppercase tracking-widest py-3 sm:py-4 px-4 sm:px-8 select-none hover:bg-opacity-95 transform hover:-translate-y-[1px] transition duration-200 text-center"
             >
-              SHOP COLLECTION
+              SHOP NOW
             </button>
             <button
               onClick={() => onNavigate('shop', { filter: 'editorial' })}
-              className="border border-primary bg-transparent text-primary font-button-text text-xs uppercase tracking-widest py-4 px-8 hover:bg-surface-container-low transition duration-200"
+              className="flex-1 sm:flex-none border border-primary bg-transparent text-primary font-button-text text-[10.5px] sm:text-xs uppercase tracking-widest py-3 sm:py-4 px-4 sm:px-8 hover:bg-surface-container-low transition duration-200 text-center"
             >
-              VIEW EDITORIAL
+              EDITORIAL
             </button>
           </div>
         </div>

@@ -62,12 +62,12 @@ export default function Header({
         </div>
 
         {/* Logo - Centered */}
-        <div className="absolute left-1/2 transform -translate-x-1/2 text-center">
+        <div className="absolute left-1/2 transform -translate-x-1/2 text-center max-w-[45%] md:max-w-none">
           <button
             onClick={() => onNavigate('home')}
-            className="font-display-lg font-bold tracking-[-0.04em] text-[24px] md:text-[32px] uppercase outline-none focus:outline-none text-primary cursor-pointer hover:opacity-85"
+            className="font-display-lg font-bold tracking-[-0.04em] text-[13px] sm:text-[18px] md:text-[26px] lg:text-[32px] uppercase outline-none focus:outline-none text-primary cursor-pointer hover:opacity-85 truncate block"
           >
-            PLAYBOOK STUDIOS
+            PLAYBOOK <span className="hidden sm:inline">STUDIOS</span>
           </button>
         </div>
 

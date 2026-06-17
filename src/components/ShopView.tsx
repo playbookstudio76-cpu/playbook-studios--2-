@@ -16,6 +16,7 @@ export default function ShopView({ products, onNavigate, initialFilters }: ShopV
   const [maxPrice, setMaxPrice] = useState(10000);
   const [sortBy, setSortBy] = useState('Newest');
   const [currentPage, setCurrentPage] = useState(1);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Sync category filter if user clicked from Home or Header
   useEffect(() => {
@@ -115,10 +116,38 @@ export default function ShopView({ products, onNavigate, initialFilters }: ShopV
 
   return (
     <div className="flex-grow max-w-[1440px] mx-auto px-4 md:px-[64px] py-10">
+      
+      {/* Mobile-First Collapsible Filter Header */}
+      <div className="lg:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant pb-4 mb-6">
+        <button
+          onClick={() => setShowMobileFilters(!showMobileFilters)}
+          className="w-full sm:w-auto flex items-center justify-between border border-primary px-4 py-3 font-mono text-[11px] tracking-widest uppercase font-semibold text-primary transition-colors hover:bg-neutral-50 active:bg-neutral-100"
+        >
+          <div className="flex items-center space-x-2">
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>{showMobileFilters ? '✕ CLOSE FILTERS' : '⚡ FILTERS & SEARCH'}</span>
+          </div>
+          <span className="bg-primary text-on-primary text-[9px] px-1.5 py-0.5 ml-3 font-bold rounded-full">
+            { (selectedCategory !== 'all' ? 1 : 0) + (selectedSize ? 1 : 0) + (searchQuery.trim() !== '' ? 1 : 0) + (maxPrice < 10000 ? 1 : 0) }
+          </span>
+        </button>
+        <div className="flex items-center justify-between sm:justify-end gap-4 text-[10px] font-mono text-secondary uppercase">
+          <span>{filteredProducts.length} architectural items</span>
+          {((selectedCategory !== 'all') || selectedSize || searchQuery || maxPrice < 10000) && (
+            <button 
+              onClick={resetAllFilters}
+              className="text-red-500 hover:underline hover:text-red-600 font-semibold"
+            >
+              Reset All
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="flex flex-col lg:flex-row gap-12">
         
         {/* SIDEBAR FILTERS - Match Screenshot 1 */}
-        <aside className="w-full lg:w-[260px] flex-shrink-0 space-y-10">
+        <aside className={`w-full lg:w-[260px] flex-shrink-0 space-y-10 border-b border-outline-variant pb-8 lg:border-b-0 lg:pb-0 ${showMobileFilters ? 'block' : 'hidden lg:block'}`}>
           
           {/* A. Bottom-bordered Search Input */}
           <div className="relative border-b border-outline-variant pb-2 flex items-center">
