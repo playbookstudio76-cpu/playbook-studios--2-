@@ -28,6 +28,16 @@ const KEYS = {
   CARTS: 'pb_carts_db', // keyed by userId
 };
 
+export function cleanFirestoreData<T extends object>(obj: T): T {
+  const cleaned = { ...obj } as any;
+  Object.keys(cleaned).forEach(key => {
+    if (cleaned[key] === undefined) {
+      delete cleaned[key];
+    }
+  });
+  return cleaned;
+}
+
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   const clean = email.trim().toLowerCase();
@@ -311,7 +321,7 @@ export function saveCurrentUserSnapshot(user: UserProfile) {
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
 
   // Sync with Firestore
-  setDoc(doc(db, 'users', user.id), user).catch(err => {
+  setDoc(doc(db, 'users', user.id), cleanFirestoreData(user)).catch(err => {
     handleFirestoreError(err, OperationType.WRITE, `users/${user.id}`);
   });
 }
@@ -353,7 +363,7 @@ export async function signupUser(firstName: string, lastName: string, email: str
     localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(newUser));
 
     // 3. Sync to Firestore
-    await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+    await setDoc(doc(db, 'users', firebaseUser.uid), cleanFirestoreData(newUser));
 
     return { success: true, user: newUser };
   } catch (err: any) {
@@ -404,17 +414,17 @@ export async function loginUser(email: string, passwordSecret: string): Promise<
       };
       
       // Save in Firestore and localStorage
-      await setDoc(doc(db, 'users', firebaseUser.uid), user);
+      await setDoc(doc(db, 'users', firebaseUser.uid), cleanFirestoreData(user));
       users.push(user);
       localStorage.setItem(KEYS.USERS, JSON.stringify(users));
     } else {
       if (isAdminEmail(cleanEmail) && user.role !== 'admin') {
         user.role = 'admin';
-        await setDoc(doc(db, 'users', firebaseUser.uid), user);
+        await setDoc(doc(db, 'users', firebaseUser.uid), cleanFirestoreData(user));
       }
       if (user.id !== firebaseUser.uid) {
         user.id = firebaseUser.uid;
-        await setDoc(doc(db, 'users', firebaseUser.uid), user);
+        await setDoc(doc(db, 'users', firebaseUser.uid), cleanFirestoreData(user));
         localStorage.setItem(KEYS.USERS, JSON.stringify(users.map(u => u.email.toLowerCase() === cleanEmail ? user! : u)));
       }
     }
@@ -485,7 +495,7 @@ export async function addProduct(productData: Omit<Product, 'id' | 'createdAt'>)
 
   // Sync and await Firestore write
   try {
-    await setDoc(doc(db, 'products', newProduct.id), newProduct);
+    await setDoc(doc(db, 'products', newProduct.id), cleanFirestoreData(newProduct));
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `products/${newProduct.id}`);
     throw err;
@@ -505,7 +515,7 @@ export async function updateProduct(id: string, updatedData: Partial<Product>): 
 
   // Sync and await Firestore write
   try {
-    await setDoc(doc(db, 'products', id), updatedNode);
+    await setDoc(doc(db, 'products', id), cleanFirestoreData(updatedNode));
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `products/${id}`);
     throw err;
@@ -552,7 +562,7 @@ export async function addCategory(name: string): Promise<Category> {
 
   // Sync and await Firestore write
   try {
-    await setDoc(doc(db, 'categories', newCat.id), newCat);
+    await setDoc(doc(db, 'categories', newCat.id), cleanFirestoreData(newCat));
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `categories/${newCat.id}`);
     throw err;
@@ -637,7 +647,7 @@ export function createOrder(
       parentProd.stock = Math.max(0, parentProd.stock - item.quantity);
       
       // Update inventory on Firestore too
-      setDoc(doc(db, 'products', parentProd.id), parentProd).catch(e => {
+      setDoc(doc(db, 'products', parentProd.id), cleanFirestoreData(parentProd)).catch(e => {
         handleFirestoreError(e, OperationType.WRITE, `products/${parentProd.id}`);
       });
     }
@@ -648,7 +658,7 @@ export function createOrder(
   saveCartForUser(userId, []);
 
   // Sync to Firestore
-  setDoc(doc(db, 'orders', newOrder.id), newOrder).catch(err => {
+  setDoc(doc(db, 'orders', newOrder.id), cleanFirestoreData(newOrder)).catch(err => {
     handleFirestoreError(err, OperationType.WRITE, `orders/${newOrder.id}`);
   });
 
@@ -664,7 +674,7 @@ export function updateOrderStatus(orderId: string, status: Order['status']): boo
   localStorage.setItem(KEYS.ORDERS, JSON.stringify(orders));
 
   // Sync to Firestore
-  setDoc(doc(db, 'orders', orderId), orders[idx]).catch(err => {
+  setDoc(doc(db, 'orders', orderId), cleanFirestoreData(orders[idx])).catch(err => {
     handleFirestoreError(err, OperationType.WRITE, `orders/${orderId}`);
   });
 
