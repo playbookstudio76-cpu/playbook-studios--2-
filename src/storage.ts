@@ -8,6 +8,11 @@ import {
   deleteDoc, 
   onSnapshot 
 } from 'firebase/firestore';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut
+} from 'firebase/auth';
 
 // Storage keys
 const KEYS = {
@@ -145,10 +150,8 @@ export function startFirebaseSync(onUpdate: () => void) {
       snapshot.forEach(docSnap => {
         items.push({ id: docSnap.id, ...docSnap.data() } as Product);
       });
-      if (items.length > 0) {
-        localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(items));
-        onUpdate();
-      }
+      localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(items));
+      onUpdate();
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'products');
     });
@@ -159,10 +162,8 @@ export function startFirebaseSync(onUpdate: () => void) {
       snapshot.forEach(docSnap => {
         items.push({ id: docSnap.id, ...docSnap.data() } as Category);
       });
-      if (items.length > 0) {
-        localStorage.setItem(KEYS.CATEGORIES, JSON.stringify(items));
-        onUpdate();
-      }
+      localStorage.setItem(KEYS.CATEGORIES, JSON.stringify(items));
+      onUpdate();
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'categories');
     });
@@ -173,10 +174,8 @@ export function startFirebaseSync(onUpdate: () => void) {
       snapshot.forEach(docSnap => {
         items.push({ id: docSnap.id, ...docSnap.data() } as Order);
       });
-      if (snapshot.size > 0 || items.length > 0) {
-        localStorage.setItem(KEYS.ORDERS, JSON.stringify(items));
-        onUpdate();
-      }
+      localStorage.setItem(KEYS.ORDERS, JSON.stringify(items));
+      onUpdate();
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'orders');
     });
@@ -187,10 +186,8 @@ export function startFirebaseSync(onUpdate: () => void) {
       snapshot.forEach(docSnap => {
         items.push({ id: docSnap.id, ...docSnap.data() } as UserProfile);
       });
-      if (items.length > 0) {
-        localStorage.setItem(KEYS.USERS, JSON.stringify(items));
-        onUpdate();
-      }
+      localStorage.setItem(KEYS.USERS, JSON.stringify(items));
+      onUpdate();
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'users');
     });
@@ -225,87 +222,139 @@ export function saveCurrentUserSnapshot(user: UserProfile) {
   });
 }
 
-export function signupUser(firstName: string, lastName: string, email: string, phone: string, passwordSecret: string): { success: boolean; user?: UserProfile; error?: string } {
+export async function signupUser(firstName: string, lastName: string, email: string, phone: string, passwordSecret: string): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
   const cleanEmail = email.trim().toLowerCase();
   
   if (!cleanEmail || !passwordSecret) {
     return { success: false, error: 'Email and password are required.' };
   }
 
-  const users = getAllUsers();
-  if (users.find(u => u.email.toLowerCase() === cleanEmail)) {
-    return { success: false, error: 'An account with this email already exists.' };
+  try {
+    // 1. Create User in Firebase Auth
+    const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, passwordSecret);
+    const firebaseUser = userCredential.user;
+
+    const role: UserRole = cleanEmail === 'playbookstudio79@gmail.com' ? 'admin' : 'customer';
+    
+    const newUser: UserProfile = {
+      id: firebaseUser.uid, // Use Firebase UID for direct Firestore association
+      firstName,
+      lastName,
+      email: cleanEmail,
+      phone,
+      role,
+      createdAt: new Date().toISOString(),
+      addresses: []
+    };
+
+    // 2. Persist in local lists
+    const users = getAllUsers();
+    const existingIdx = users.findIndex(u => u.email.toLowerCase() === cleanEmail);
+    if (existingIdx !== -1) {
+      users[existingIdx] = newUser;
+    } else {
+      users.push(newUser);
+    }
+    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+    localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(newUser));
+
+    // 3. Sync to Firestore
+    await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+
+    return { success: true, user: newUser };
+  } catch (err: any) {
+    console.error('Firebase Signup Error Detail:', err);
+    let errorMsg = 'Signup failed.';
+    if (err.code === 'auth/email-already-in-use') {
+      errorMsg = 'An account with this email already exists.';
+    } else if (err.code === 'auth/weak-password') {
+      errorMsg = 'The password is too weak. Must be at least 6 characters.';
+    } else if (err.code === 'auth/invalid-email') {
+      errorMsg = 'The email address is invalid.';
+    } else if (err.code === 'auth/operation-not-allowed') {
+      errorMsg = "Email/Password sign-in is disabled in Firebase console. Go to Authentication > Sign-in method, edit 'Email/Password', enable it, and save.";
+    } else {
+      errorMsg = err.message || errorMsg;
+    }
+    return { success: false, error: errorMsg };
   }
-
-  const role: UserRole = cleanEmail === 'playbookstudio79@gmail.com' ? 'admin' : 'customer';
-  
-  const newUser: UserProfile = {
-    id: 'user_' + Math.random().toString(36).substr(2, 9),
-    firstName,
-    lastName,
-    email: cleanEmail,
-    phone,
-    role,
-    createdAt: new Date().toISOString(),
-    addresses: []
-  };
-
-  users.push(newUser);
-  localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-  localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(newUser));
-
-  // Sync to Firestore
-  setDoc(doc(db, 'users', newUser.id), newUser).catch(err => {
-    handleFirestoreError(err, OperationType.WRITE, `users/${newUser.id}`);
-  });
-
-  return { success: true, user: newUser };
 }
 
-export function loginUser(email: string, passwordSecret: string): { success: boolean; user?: UserProfile; error?: string } {
+export async function loginUser(email: string, passwordSecret: string): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
   const cleanEmail = email.trim().toLowerCase();
   
   if (!cleanEmail || !passwordSecret) {
     return { success: false, error: 'Email and password are required.' };
   }
 
-  const users = getAllUsers();
-  const user = users.find(u => u.email.toLowerCase() === cleanEmail);
+  try {
+    // 1. Sign in with Firebase Auth
+    const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, passwordSecret);
+    const firebaseUser = userCredential.user;
 
-  if (!user) {
-    // If logging email is the special admin, auto-create it if somehow missing from DB
-    if (cleanEmail === 'playbookstudio79@gmail.com') {
-      const newAdmin: UserProfile = {
-        id: 'user_admin',
-        firstName: 'Playbook',
-        lastName: 'Admin',
-        email: 'playbookstudio79@gmail.com',
-        phone: '+1 (555) 7979',
-        role: 'admin',
+    // 2. Retrieve profile from local users or fallback
+    const users = getAllUsers();
+    let user = users.find(u => u.id === firebaseUser.uid || u.email.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      const role: UserRole = cleanEmail === 'playbookstudio79@gmail.com' ? 'admin' : 'customer';
+      user = {
+        id: firebaseUser.uid,
+        firstName: cleanEmail === 'playbookstudio79@gmail.com' ? 'Playbook' : 'Store',
+        lastName: cleanEmail === 'playbookstudio79@gmail.com' ? 'Admin' : 'Member',
+        email: cleanEmail,
+        phone: '',
+        role,
         createdAt: new Date().toISOString(),
         addresses: []
       };
-      users.push(newAdmin);
+      
+      // Save in Firestore and localStorage
+      await setDoc(doc(db, 'users', firebaseUser.uid), user);
+      users.push(user);
       localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-      localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(newAdmin));
-
-      // Push to Firestore as well
-      setDoc(doc(db, 'users', 'user_admin'), newAdmin).catch((e) => {
-        handleFirestoreError(e, OperationType.WRITE, 'users/user_admin');
-      });
-
-      return { success: true, user: newAdmin };
+    } else {
+      if (user.id !== firebaseUser.uid) {
+        user.id = firebaseUser.uid;
+        await setDoc(doc(db, 'users', firebaseUser.uid), user);
+        localStorage.setItem(KEYS.USERS, JSON.stringify(users.map(u => u.email.toLowerCase() === cleanEmail ? user! : u)));
+      }
     }
-    return { success: false, error: 'Invalid email or password.' };
-  }
 
-  // Session persistence
-  localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
-  return { success: true, user };
+    localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
+    return { success: true, user };
+  } catch (err: any) {
+    console.error('Firebase Login Error Detail:', err);
+    
+    // Auto-create administrative user if it's the default admin and doesn't exist yet on a fresh Firebase
+    if (cleanEmail === 'playbookstudio79@gmail.com' && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential')) {
+      try {
+        const signupRes = await signupUser('Playbook', 'Admin', cleanEmail, '+1 (555) 7979', passwordSecret);
+        if (signupRes.success) {
+          return { success: true, user: signupRes.user };
+        }
+      } catch (signupErr) {
+        console.error('Admin auto-creation failed:', signupErr);
+      }
+    }
+
+    let errorMsg = 'Invalid email or password.';
+    if (err.code === 'auth/invalid-email') {
+      errorMsg = 'The email address is invalid.';
+    } else if (err.code === 'auth/operation-not-allowed') {
+      errorMsg = "Email/Password sign-in is disabled in Firebase console. Go to Authentication > Sign-in method, edit 'Email/Password', enable it, and save.";
+    } else {
+      errorMsg = err.message || errorMsg;
+    }
+    return { success: false, error: errorMsg };
+  }
 }
 
 export function logoutUser() {
   localStorage.removeItem(KEYS.CURRENT_USER);
+  signOut(auth).catch(err => {
+    console.warn('Firebase logout issue:', err);
+  });
 }
 
 export function getAllUsers(): UserProfile[] {

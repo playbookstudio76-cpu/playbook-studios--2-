@@ -67,6 +67,122 @@ export default function AdminDashboard({
   const [formImagesText, setFormImagesText] = useState(''); // comma separated URLs
   const [formSizes, setFormSizes] = useState<string[]>(['S', 'M', 'L']);
   const [formColors, setFormColors] = useState<string[]>(['#000000', '#FFFFFF']);
+  
+  // Cloudinary Direct Uploader states
+  const [uploading, setUploading] = useState(false);
+  const [cloudinaryPreset, setCloudinaryPreset] = useState('ml_default');
+  const [uploadError, setUploadError] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  // Cloudinary Upload Routines
+  const handleCloudinaryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    setUploading(true);
+    setUploadError('');
+
+    try {
+      const file = files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', cloudinaryPreset);
+      formData.append('cloud_name', 'df4qsb2lr');
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/df4qsb2lr/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const specificMsg = errData?.error?.message || '';
+         throw new Error(
+          specificMsg || `HTTP error ${response.status}: Failed to upload.`
+        );
+      }
+
+      const data = await response.json();
+      if (data.secure_url) {
+        const currentUrls = formImagesText.trim();
+        const divider = currentUrls ? ', ' : '';
+        setFormImagesText(currentUrls + divider + data.secure_url);
+        alert('Streetwear image uploaded to Cloudinary, and added to image list!');
+      } else {
+        throw new Error('Upload output returned no secure URL.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setUploadError(
+        err.message || 'Check your internet connection or upload preset.'
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+    
+    setUploading(true);
+    setUploadError('');
+
+    try {
+      const file = files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', cloudinaryPreset);
+      formData.append('cloud_name', 'df4qsb2lr');
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/df4qsb2lr/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const specificMsg = errData?.error?.message || '';
+        throw new Error(
+          specificMsg || `HTTP error ${response.status}: Failed to upload.`
+        );
+      }
+
+      const data = await response.json();
+      if (data.secure_url) {
+        const currentUrls = formImagesText.trim();
+        const divider = currentUrls ? ', ' : '';
+        setFormImagesText(currentUrls + divider + data.secure_url);
+        alert('Streetwear image uploaded to Cloudinary, and added to image list!');
+      } else {
+        throw new Error('Upload output returned no secure URL.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setUploadError(
+        err.message || 'Check your internet connection or upload preset.'
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Filters inside order lists
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
@@ -573,6 +689,66 @@ export default function AdminDashboard({
                     <label htmlFor="formFeatured" className="font-label-caps text-[9px] text-secondary tracking-widest uppercase cursor-pointer select-none">
                       Mark Featured Product
                     </label>
+                  </div>
+                </div>
+
+                {/* Cloudinary Direct Secure Upload Widget */}
+                <div className="border border-outline-variant p-4 space-y-3 bg-neutral-50/50">
+                  <div className="flex justify-between items-center pb-2 border-b border-light-outline-variant">
+                    <span className="font-label-caps text-[9px] text-[#0A0A0A] tracking-wider uppercase font-bold">Cloudinary Drag & Drop Uploader</span>
+                    <span className="font-mono text-[8.5px] text-[#2563EB] uppercase font-semibold">CLOUD: df4qsb2lr</span>
+                  </div>
+
+                  <div 
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => document.getElementById('cloudinary-file-input')?.click()}
+                    className={`border border-dashed p-6 transition-all text-center flex flex-col items-center justify-center cursor-pointer rounded-none relative ${
+                      isDragOver ? 'border-primary bg-primary/5 scale-[1.01]' : 'border-outline-variant hover:border-zinc-400 bg-white'
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      id="cloudinary-file-input"
+                      accept="image/*"
+                      onChange={handleCloudinaryUpload}
+                      className="hidden"
+                    />
+                    
+                    {uploading ? (
+                      <div className="flex flex-col items-center space-y-2 py-2">
+                        <div className="animate-spin rounded-full h-5 w-5 border border-primary border-t-transparent" />
+                        <span className="font-mono text-[9px] text-primary tracking-widest uppercase animate-pulse">UPLOADING STREETWEAR ASSET...</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="font-label-caps text-[10px] text-primary tracking-widest uppercase font-bold">Drag & Drop Image or Click to Browse</p>
+                        <p className="font-mono text-[8px] text-secondary uppercase">Directly streams secure assets straight to Cloudinary media vault</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {uploadError && (
+                    <div className="text-[10px] text-red-600 font-mono bg-red-50 p-2.5 border-l-2 border-red-500 whitespace-pre-wrap leading-relaxed">
+                      <p className="font-bold uppercase tracking-wider mb-1">Upload Error details:</p>
+                      <p>{uploadError}</p>
+                      <p className="mt-2 text-slate-500 text-[9px]">
+                        💡 Cloudinary requires unsigned upload preset to access directly without using a backend api_secret. 
+                        Please ensure you have created an Unsigned Upload Preset named <span className="font-bold underline text-primary">'{cloudinaryPreset}'</span> in your Cloudinary Dashboard under Settings &gt; Upload &gt; Upload presets.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center space-x-2 pt-1">
+                    <label className="font-mono text-[8px] text-[#5d5f5f] tracking-widest uppercase">Unsigned Upload Preset:</label>
+                    <input 
+                      type="text"
+                      value={cloudinaryPreset}
+                      onChange={(e) => setCloudinaryPreset(e.target.value)}
+                      className="border-b border-light-outline-variant focus:border-primary focus:outline-none px-2 py-0.5 text-[10px] font-mono text-primary bg-transparent text-center"
+                      placeholder="ml_default"
+                    />
                   </div>
                 </div>
 

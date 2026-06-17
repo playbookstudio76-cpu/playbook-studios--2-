@@ -17,37 +17,45 @@ export default function AuthView({ onAuthSuccess, onNavigate }: AuthViewProps) {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
 
     if (isLogin) {
-      const res = loginUser(email, password);
-      if (res.success && res.user) {
-        onAuthSuccess(res.user);
-        if (res.user.role === 'admin') {
-          onNavigate('admin');
+      try {
+        const res = await loginUser(email, password);
+        if (res.success && res.user) {
+          onAuthSuccess(res.user);
+          if (res.user.role === 'admin') {
+            onNavigate('admin');
+          } else {
+            onNavigate('home');
+          }
         } else {
-          onNavigate('home');
+          setError(res.error || 'Login failed. Please verify credentials.');
         }
-      } else {
-        setError(res.error || 'Login failed. Please verify credentials.');
+      } catch (err: any) {
+        setError(err.message || 'Login failed.');
       }
     } else {
       if (!firstName || !lastName || !phone) {
         setError('Please complete all requested fields.');
         return;
       }
-      const res = signupUser(firstName, lastName, email, phone, password);
-      if (res.success && res.user) {
-        setSuccessMsg('Account created successfully!');
-        setTimeout(() => {
-          onAuthSuccess(res.user!);
-          onNavigate('home');
-        }, 1200);
-      } else {
-        setError(res.error || 'Signup failed.');
+      try {
+        const res = await signupUser(firstName, lastName, email, phone, password);
+        if (res.success && res.user) {
+          setSuccessMsg('Account created successfully!');
+          setTimeout(() => {
+            onAuthSuccess(res.user!);
+            onNavigate('home');
+          }, 1200);
+        } else {
+          setError(res.error || 'Signup failed.');
+        }
+      } catch (err: any) {
+        setError(err.message || 'Signup failed.');
       }
     }
   };
