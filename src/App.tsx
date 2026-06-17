@@ -309,18 +309,18 @@ export default function App() {
   };
 
   // Admin Studio triggers: Write back and refresh list states
-  const handleAdminAddProduct = (prodData: Omit<Product, 'id' | 'createdAt'>) => {
-    addProduct(prodData);
+  const handleAdminAddProduct = async (prodData: Omit<Product, 'id' | 'createdAt'>) => {
+    await addProduct(prodData);
     setProducts(getAllProducts()); // refresh state
   };
 
-  const handleAdminUpdateProduct = (id: string, updatedData: Partial<Product>) => {
-    updateProduct(id, updatedData);
+  const handleAdminUpdateProduct = async (id: string, updatedData: Partial<Product>) => {
+    await updateProduct(id, updatedData);
     setProducts(getAllProducts());
   };
 
-  const handleAdminDeleteProduct = (id: string) => {
-    deleteProduct(id);
+  const handleAdminDeleteProduct = async (id: string) => {
+    await deleteProduct(id);
     setProducts(getAllProducts());
   };
 
@@ -329,8 +329,8 @@ export default function App() {
     setOrders(getAllOrders());
   };
 
-  const handleAdminAddCategory = (name: string) => {
-    addCategory(name);
+  const handleAdminAddCategory = async (name: string) => {
+    await addCategory(name);
     setCategories(getAllCategories());
   };
 

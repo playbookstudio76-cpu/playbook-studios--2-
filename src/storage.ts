@@ -28,6 +28,12 @@ const KEYS = {
   CARTS: 'pb_carts_db', // keyed by userId
 };
 
+export function isAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const clean = email.trim().toLowerCase();
+  return clean === 'playbookstudio79@gmail.com' || clean === 'sohansahustudy@gmail.com';
+}
+
 // Error handling types and enumerations as requested by the Firebase Skill constraints
 export enum OperationType {
   CREATE = 'create',
@@ -202,7 +208,7 @@ export function startFirebaseSync(onUpdate: () => void) {
           if (localUser && localUser.id === firebaseUser.uid) {
             userProfile = localUser;
           } else {
-            const is_admin = firebaseUser.email === 'playbookstudio79@gmail.com';
+            const is_admin = isAdminEmail(firebaseUser.email);
             userProfile = {
               id: firebaseUser.uid,
               firstName: is_admin ? 'Playbook' : 'Store',
@@ -322,7 +328,7 @@ export async function signupUser(firstName: string, lastName: string, email: str
     const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, passwordSecret);
     const firebaseUser = userCredential.user;
 
-    const role: UserRole = cleanEmail === 'playbookstudio79@gmail.com' ? 'admin' : 'customer';
+    const role: UserRole = isAdminEmail(cleanEmail) ? 'admin' : 'customer';
     
     const newUser: UserProfile = {
       id: firebaseUser.uid, // Use Firebase UID for direct Firestore association
@@ -385,11 +391,11 @@ export async function loginUser(email: string, passwordSecret: string): Promise<
     let user = users.find(u => u.id === firebaseUser.uid || u.email.toLowerCase() === cleanEmail);
 
     if (!user) {
-      const role: UserRole = cleanEmail === 'playbookstudio79@gmail.com' ? 'admin' : 'customer';
+      const role: UserRole = isAdminEmail(cleanEmail) ? 'admin' : 'customer';
       user = {
         id: firebaseUser.uid,
-        firstName: cleanEmail === 'playbookstudio79@gmail.com' ? 'Playbook' : 'Store',
-        lastName: cleanEmail === 'playbookstudio79@gmail.com' ? 'Admin' : 'Member',
+        firstName: isAdminEmail(cleanEmail) ? 'Playbook' : 'Store',
+        lastName: isAdminEmail(cleanEmail) ? 'Admin' : 'Member',
         email: cleanEmail,
         phone: '',
         role,
@@ -402,6 +408,10 @@ export async function loginUser(email: string, passwordSecret: string): Promise<
       users.push(user);
       localStorage.setItem(KEYS.USERS, JSON.stringify(users));
     } else {
+      if (isAdminEmail(cleanEmail) && user.role !== 'admin') {
+        user.role = 'admin';
+        await setDoc(doc(db, 'users', firebaseUser.uid), user);
+      }
       if (user.id !== firebaseUser.uid) {
         user.id = firebaseUser.uid;
         await setDoc(doc(db, 'users', firebaseUser.uid), user);
@@ -415,7 +425,7 @@ export async function loginUser(email: string, passwordSecret: string): Promise<
     console.error('Firebase Login Error Detail:', err);
     
     // Auto-create administrative user if it's the default admin and doesn't exist yet on a fresh Firebase
-    if (cleanEmail === 'playbookstudio79@gmail.com' && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential')) {
+    if (isAdminEmail(cleanEmail) && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential')) {
       try {
         const signupRes = await signupUser('Playbook', 'Admin', cleanEmail, '+1 (555) 7979', passwordSecret);
         if (signupRes.success) {
@@ -463,7 +473,7 @@ export function getProductById(id: string): Product | null {
   return products.find(p => p.id === id) || null;
 }
 
-export function addProduct(productData: Omit<Product, 'id' | 'createdAt'>): Product {
+export async function addProduct(productData: Omit<Product, 'id' | 'createdAt'>): Promise<Product> {
   const products = getAllProducts();
   const newProduct: Product = {
     ...productData,
@@ -473,15 +483,18 @@ export function addProduct(productData: Omit<Product, 'id' | 'createdAt'>): Prod
   products.unshift(newProduct);
   localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
 
-  // Sync to Firestore
-  setDoc(doc(db, 'products', newProduct.id), newProduct).catch(err => {
+  // Sync and await Firestore write
+  try {
+    await setDoc(doc(db, 'products', newProduct.id), newProduct);
+  } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `products/${newProduct.id}`);
-  });
+    throw err;
+  }
 
   return newProduct;
 }
 
-export function updateProduct(id: string, updatedData: Partial<Product>): boolean {
+export async function updateProduct(id: string, updatedData: Partial<Product>): Promise<boolean> {
   const products = getAllProducts();
   const idx = products.findIndex(p => p.id === id);
   if (idx === -1) return false;
@@ -490,25 +503,31 @@ export function updateProduct(id: string, updatedData: Partial<Product>): boolea
   products[idx] = updatedNode;
   localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
 
-  // Sync to Firestore
-  setDoc(doc(db, 'products', id), updatedNode).catch(err => {
+  // Sync and await Firestore write
+  try {
+    await setDoc(doc(db, 'products', id), updatedNode);
+  } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `products/${id}`);
-  });
+    throw err;
+  }
 
   return true;
 }
 
-export function deleteProduct(id: string): boolean {
+export async function deleteProduct(id: string): Promise<boolean> {
   const products = getAllProducts();
   const filtered = products.filter(p => p.id !== id);
   if (products.length === filtered.length) return false;
 
   localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(filtered));
 
-  // Sync delete to Firestore
-  deleteDoc(doc(db, 'products', id)).catch(err => {
+  // Sync and await Firestore delete
+  try {
+    await deleteDoc(doc(db, 'products', id));
+  } catch (err) {
     handleFirestoreError(err, OperationType.DELETE, `products/${id}`);
-  });
+    throw err;
+  }
 
   return true;
 }
@@ -521,7 +540,7 @@ export function getAllCategories(): Category[] {
   return list ? JSON.parse(list) : [];
 }
 
-export function addCategory(name: string): Category {
+export async function addCategory(name: string): Promise<Category> {
   const cats = getAllCategories();
   const newCat: Category = {
     id: name.toLowerCase().replace(/\s+/g, '-'),
@@ -531,10 +550,13 @@ export function addCategory(name: string): Category {
   cats.push(newCat);
   localStorage.setItem(KEYS.CATEGORIES, JSON.stringify(cats));
 
-  // Sync to Firestore
-  setDoc(doc(db, 'categories', newCat.id), newCat).catch(err => {
+  // Sync and await Firestore write
+  try {
+    await setDoc(doc(db, 'categories', newCat.id), newCat);
+  } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `categories/${newCat.id}`);
-  });
+    throw err;
+  }
 
   return newCat;
 }

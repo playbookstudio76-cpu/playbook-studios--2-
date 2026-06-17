@@ -18,17 +18,18 @@ import {
   FolderPlus
 } from 'lucide-react';
 import { Product, Order, UserProfile, Category } from '../types';
+import { getCurrentUser } from '../storage';
 
 interface AdminDashboardProps {
   products: Product[];
   orders: Order[];
   users: UserProfile[];
   categories: Category[];
-  onAddProduct: (prod: Omit<Product, 'id' | 'createdAt'>) => void;
-  onUpdateProduct: (id: string, updated: Partial<Product>) => void;
-  onDeleteProduct: (id: string) => void;
+  onAddProduct: (prod: Omit<Product, 'id' | 'createdAt'>) => Promise<void>;
+  onUpdateProduct: (id: string, updated: Partial<Product>) => Promise<void>;
+  onDeleteProduct: (id: string) => Promise<void>;
   onUpdateOrderStatus: (orderId: string, status: Order['status']) => void;
-  onAddCategory: (name: string) => void;
+  onAddCategory: (name: string) => Promise<void>;
 }
 
 export default function AdminDashboard({
@@ -50,6 +51,7 @@ export default function AdminDashboard({
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isSavingCloud, setIsSavingCloud] = useState(false);
 
   // New Category trigger
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -260,7 +262,7 @@ export default function AdminDashboard({
     setIsAddingProduct(true);
   };
 
-  const handleSaveProduct = (e: React.FormEvent) => {
+  const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName || !formDesc || !formImagesText) {
       alert('Please complete the product form.');
@@ -288,23 +290,38 @@ export default function AdminDashboard({
       colors: formColors,
     };
 
-    if (editingProduct) {
-      onUpdateProduct(editingProduct.id, productPayload);
-      alert('Product updated successfully.');
-    } else {
-      onAddProduct(productPayload);
-      alert('New streetwear element added to collection.');
+    setIsSavingCloud(true);
+    try {
+      if (editingProduct) {
+        await onUpdateProduct(editingProduct.id, productPayload);
+        alert('🎉 CONFIRMATION: Product has been successfully updated and synchronized globally in Firestore!');
+      } else {
+        await onAddProduct(productPayload);
+        alert('🎉 CONFIRMATION: Product has been successfully uploaded, created, and published to the Firestore catalog!');
+      }
+      setIsAddingProduct(false);
+      setEditingProduct(null);
+    } catch (err: any) {
+      console.error(err);
+      alert(`❌ ERROR UPLOADING PRODUCT: ${err.message || 'Check connection or user authentication permission.'}`);
+    } finally {
+      setIsSavingCloud(false);
     }
-
-    setIsAddingProduct(false);
-    setEditingProduct(null);
   };
 
-  const handleDeleteProductConfirmed = () => {
+  const handleDeleteProductConfirmed = async () => {
     if (deleteConfirmId) {
-      onDeleteProduct(deleteConfirmId);
-      setDeleteConfirmId(null);
-      alert(' street element removed from local database and storage simulated buckets.');
+      setIsSavingCloud(true);
+      try {
+        await onDeleteProduct(deleteConfirmId);
+        setDeleteConfirmId(null);
+        alert('🗑️ CONFIRMATION: Streetwear element has been deleted successfully from Firestore catalog.');
+      } catch (err: any) {
+        console.error(err);
+        alert(`❌ ERROR DELETING PRODUCT: ${err.message || 'Check permissions.'}`);
+      } finally {
+        setIsSavingCloud(false);
+      }
     }
   };
 
@@ -324,13 +341,21 @@ export default function AdminDashboard({
     }
   };
 
-  const handleAddCategorySubmit = (e: React.FormEvent) => {
+  const handleAddCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
-    onAddCategory(newCatName.trim());
-    setNewCatName('');
-    setIsAddingCategory(false);
-    alert('New category directory registered.');
+    setIsSavingCloud(true);
+    try {
+      await onAddCategory(newCatName.trim());
+      setNewCatName('');
+      setIsAddingCategory(false);
+      alert('🎉 CONFIRMATION: New category has been successfully synchronized to Firestore!');
+    } catch (err: any) {
+      console.error(err);
+      alert(`❌ ERROR CREATING CATEGORY: ${err.message || 'Check connection or user admin permission.'}`);
+    } finally {
+      setIsSavingCloud(false);
+    }
   };
 
   // Filter Orders Lists
@@ -357,9 +382,27 @@ export default function AdminDashboard({
     });
   }, [users, customerSearchQuery]);
 
+  const currentUser = getCurrentUser();
+  const currentEmail = currentUser?.email || 'playbookstudio79@gmail.com';
+
   return (
     <div className="flex-grow max-w-[1440px] mx-auto px-4 md:px-[64px] py-[64px] font-body-md text-on-background">
       
+      {/* Cloud Synchronizing Overlay */}
+      {isSavingCloud && (
+        <div className="fixed inset-0 bg-black/65 backdrop-blur-[3px] z-[9999] flex flex-col items-center justify-center p-4">
+          <div className="bg-white border border-outline-variant p-8 flex flex-col items-center max-w-sm text-center shadow-xl">
+            <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent mb-4" />
+            <p className="font-display-sm text-[16px] tracking-widest font-bold uppercase text-primary animate-pulse">
+              SYNCING WITH CLOUD...
+            </p>
+            <p className="font-mono text-[10px] text-zinc-500 uppercase mt-2">
+              Streaming streetwear structural records securely to Firestore database hubs
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Title bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-outline-variant pb-6 mb-10 gap-4">
         <div>
@@ -367,7 +410,7 @@ export default function AdminDashboard({
             PLAYBOOK STUDIOS ADMIN
           </h1>
           <p className="font-mono text-xs text-secondary mt-1 uppercase tracking-widest">
-            Logged in as administrative security terminal: playbookstudio79@gmail.com
+            Logged in as administrative security terminal: {currentEmail}
           </p>
         </div>
 
