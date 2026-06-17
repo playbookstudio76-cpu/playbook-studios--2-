@@ -6,12 +6,16 @@ import {
   doc, 
   setDoc, 
   deleteDoc, 
-  onSnapshot 
+  onSnapshot,
+  query,
+  where,
+  getDoc
 } from 'firebase/firestore';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signOut
+  signOut,
+  onAuthStateChanged
 } from 'firebase/auth';
 
 // Storage keys
@@ -143,9 +147,14 @@ initLocalStorageDB();
 
 // REAL-TIME FIRESTORE DATA SYNCHRONIZATION BACKEND
 export function startFirebaseSync(onUpdate: () => void) {
+  let unsubProducts: () => void = () => {};
+  let unsubCategories: () => void = () => {};
+  let unsubOrders: () => void = () => {};
+  let unsubUsers: () => void = () => {};
+
   try {
-    // 1. Sync Products
-    onSnapshot(collection(db, 'products'), (snapshot) => {
+    // 1. Sync Products (allowed for everyone)
+    unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
       const items: Product[] = [];
       snapshot.forEach(docSnap => {
         items.push({ id: docSnap.id, ...docSnap.data() } as Product);
@@ -156,8 +165,8 @@ export function startFirebaseSync(onUpdate: () => void) {
       handleFirestoreError(error, OperationType.GET, 'products');
     });
 
-    // 2. Sync Categories
-    onSnapshot(collection(db, 'categories'), (snapshot) => {
+    // 2. Sync Categories (allowed for everyone)
+    unsubCategories = onSnapshot(collection(db, 'categories'), (snapshot) => {
       const items: Category[] = [];
       snapshot.forEach(docSnap => {
         items.push({ id: docSnap.id, ...docSnap.data() } as Category);
@@ -168,31 +177,110 @@ export function startFirebaseSync(onUpdate: () => void) {
       handleFirestoreError(error, OperationType.GET, 'categories');
     });
 
-    // 3. Sync Orders
-    onSnapshot(collection(db, 'orders'), (snapshot) => {
-      const items: Order[] = [];
-      snapshot.forEach(docSnap => {
-        items.push({ id: docSnap.id, ...docSnap.data() } as Order);
-      });
-      localStorage.setItem(KEYS.ORDERS, JSON.stringify(items));
-      onUpdate();
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'orders');
+    // 3. Reactively sync authenticated user content (orders/profile)
+    const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Unsubscribe existing listeners
+      unsubOrders();
+      unsubUsers();
+      unsubOrders = () => {};
+      unsubUsers = () => {};
+
+      if (firebaseUser) {
+        let userProfile: UserProfile | null = null;
+        try {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            userProfile = userDoc.data() as UserProfile;
+          }
+        } catch (err) {
+          console.warn('Silent issue fetching user profile on auth transition:', err);
+        }
+
+        // Fallback or setup user schema
+        if (!userProfile) {
+          const localUser = getCurrentUser();
+          if (localUser && localUser.id === firebaseUser.uid) {
+            userProfile = localUser;
+          } else {
+            const is_admin = firebaseUser.email === 'playbookstudio79@gmail.com';
+            userProfile = {
+              id: firebaseUser.uid,
+              firstName: is_admin ? 'Playbook' : 'Store',
+              lastName: is_admin ? 'Admin' : 'Member',
+              email: firebaseUser.email || '',
+              phone: '',
+              role: is_admin ? 'admin' : 'customer',
+              createdAt: new Date().toISOString()
+            };
+          }
+        }
+
+        if (userProfile.role === 'admin') {
+          // Administrators listen to whole orders & whole users database
+          unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+            const items: Order[] = [];
+            snapshot.forEach(docSnap => {
+              items.push({ id: docSnap.id, ...docSnap.data() } as Order);
+            });
+            localStorage.setItem(KEYS.ORDERS, JSON.stringify(items));
+            onUpdate();
+          }, (error) => {
+            handleFirestoreError(error, OperationType.GET, 'orders');
+          });
+
+          unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+            const items: UserProfile[] = [];
+            snapshot.forEach(docSnap => {
+              items.push({ id: docSnap.id, ...docSnap.data() } as UserProfile);
+            });
+            localStorage.setItem(KEYS.USERS, JSON.stringify(items));
+            onUpdate();
+          }, (error) => {
+            handleFirestoreError(error, OperationType.GET, 'users');
+          });
+        } else {
+          // Customers only listen to their own customer orders to satisfy Firestore security rules
+          const personalOrdersQuery = query(collection(db, 'orders'), where('userId', '==', firebaseUser.uid));
+          unsubOrders = onSnapshot(personalOrdersQuery, (snapshot) => {
+            const items: Order[] = [];
+            snapshot.forEach(docSnap => {
+              items.push({ id: docSnap.id, ...docSnap.data() } as Order);
+            });
+            localStorage.setItem(KEYS.ORDERS, JSON.stringify(items));
+            onUpdate();
+          }, (error) => {
+            handleFirestoreError(error, OperationType.GET, 'orders');
+          });
+
+          // Customers monitor their own profile doc
+          unsubUsers = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
+            if (docSnap.exists()) {
+              const profile = docSnap.data() as UserProfile;
+              saveCurrentUserSnapshot(profile);
+              onUpdate();
+            }
+          }, (error) => {
+            handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
+          });
+        }
+      } else {
+        // Guest user: clear secure order lists so data is sandboxed
+        localStorage.setItem(KEYS.ORDERS, JSON.stringify([]));
+        onUpdate();
+      }
     });
 
-    // 4. Sync Users
-    onSnapshot(collection(db, 'users'), (snapshot) => {
-      const items: UserProfile[] = [];
-      snapshot.forEach(docSnap => {
-        items.push({ id: docSnap.id, ...docSnap.data() } as UserProfile);
-      });
-      localStorage.setItem(KEYS.USERS, JSON.stringify(items));
-      onUpdate();
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'users');
-    });
+    return () => {
+      unsubProducts();
+      unsubCategories();
+      unsubOrders();
+      unsubUsers();
+      unsubAuth();
+    };
+
   } catch (err) {
     console.warn('Real-time sync subscription not authorized or loaded offline:', err);
+    return () => {};
   }
 }
 

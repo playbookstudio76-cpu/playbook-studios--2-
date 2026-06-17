@@ -56,7 +56,7 @@ export default function App() {
     setCategories(getAllCategories());
 
     // Connect to real-time remote Firebase tables
-    startFirebaseSync(() => {
+    const unsubSync = startFirebaseSync(() => {
       setProducts(getAllProducts());
       setOrders(getAllOrders());
       setUsers(getAllUsers());
@@ -89,7 +89,10 @@ export default function App() {
     // Initial trigger
     handleHashChange();
 
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      if (unsubSync) unsubSync();
+    };
   }, []);
 
   // Update Cart when user logs in or out
