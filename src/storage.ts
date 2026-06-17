@@ -77,7 +77,45 @@ export function initLocalStorageDB() {
   }
   if (!localStorage.getItem(KEYS.ORDERS)) {
     localStorage.setItem(KEYS.ORDERS, JSON.stringify([]));
+  } else {
+    // Purge any lingering demo orders from cache
+    try {
+      const existingOrders = JSON.parse(localStorage.getItem(KEYS.ORDERS) || '[]');
+      const filteredOrders = existingOrders.filter((o: any) => o.userId !== 'demo-user-123' && o.customerEmail !== 'a.wright@example.com');
+      if (existingOrders.length !== filteredOrders.length) {
+        localStorage.setItem(KEYS.ORDERS, JSON.stringify(filteredOrders));
+      }
+    } catch (e) {
+      console.warn(e);
+    }
   }
+
+  // Active Purge of demo customer profiles if retrieved from local state cache
+  if (localStorage.getItem(KEYS.USERS)) {
+    try {
+      const existingUsers = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+      const filteredUsers = existingUsers.filter((u: any) => u.id !== 'demo-user-123' && u.email !== 'a.wright@example.com');
+      if (existingUsers.length !== filteredUsers.length) {
+        localStorage.setItem(KEYS.USERS, JSON.stringify(filteredUsers));
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+
+  // Active Purge of active session if logged in as Alexander Wright
+  if (localStorage.getItem(KEYS.CURRENT_USER)) {
+    try {
+      const curUser = JSON.parse(localStorage.getItem(KEYS.CURRENT_USER) || '{}');
+      if (curUser.id === 'demo-user-123' || curUser.email === 'a.wright@example.com') {
+        localStorage.removeItem(KEYS.CURRENT_USER);
+        window.location.reload();
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+
   // Initialize default users database with only the default administrator
   if (!localStorage.getItem(KEYS.USERS)) {
     const defaultUsersList: UserProfile[] = [

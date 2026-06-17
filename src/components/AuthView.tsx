@@ -52,6 +52,11 @@ export default function AuthView({ onAuthSuccess, onNavigate }: AuthViewProps) {
     }
   };
 
+  const loadDemoAdmin = () => {
+    setEmail('playbookstudio79@gmail.com');
+    setPassword('adminpass79');
+    setIsLogin(true);
+  };
 
   return (
     <div className="flex-grow flex flex-col md:flex-row min-h-[calc(100vh-120px)]">
@@ -92,30 +97,6 @@ export default function AuthView({ onAuthSuccess, onNavigate }: AuthViewProps) {
               {isLogin 
                 ? 'Enter your credentials to access your account.' 
                 : 'Join Playbook Studios to track orders and save details.'}
-            </p>
-          </div>
-
-          {/* Quick Demo Assist Credentials Bar */}
-          <div className="bg-surface-container-low p-4 mb-8 text-xs border border-outline-variant space-y-2">
-            <p className="font-semibold text-primary font-label-caps uppercase tracking-wider">Quick Demo Login Assist:</p>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <button 
-                type="button" 
-                onClick={loadDemoCustomer}
-                className="px-3 py-1 bg-white text-primary border border-primary text-[10px] font-label-caps uppercase hover:bg-primary hover:text-white transition"
-              >
-                Demo Customer
-              </button>
-              <button 
-                type="button" 
-                onClick={loadDemoAdmin}
-                className="px-3 py-1 bg-white text-primary border border-primary text-[10px] font-label-caps uppercase hover:bg-primary hover:text-white transition"
-              >
-                Demo Admin
-              </button>
-            </div>
-            <p className="font-mono text-[9px] text-secondary">
-              Secret admins use: <span className="text-primary font-semibold">playbookstudio79@gmail.com</span>
             </p>
           </div>
 
