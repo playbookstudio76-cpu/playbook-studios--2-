@@ -1,0 +1,454 @@
+import { useState, useEffect, useMemo } from 'react';
+import Header from './components/Header';
+import Footer from './components/Footer';
+import AuthView from './components/AuthView';
+import HomeView from './components/HomeView';
+import ShopView from './components/ShopView';
+import ProductDetailView from './components/ProductDetailView';
+import CartDrawer from './components/CartDrawer';
+import CustomerDashboard from './components/CustomerDashboard';
+import AdminDashboard from './components/AdminDashboard';
+import { UserProfile, Product, Order, CartItem, Category } from './types';
+import { 
+  getCurrentUser, 
+  logoutUser, 
+  getAllProducts, 
+  getAllOrders, 
+  getAllUsers, 
+  getAllCategories, 
+  getCartForUser, 
+  saveCartForUser, 
+  createOrder, 
+  updateOrderStatus, 
+  addProduct, 
+  updateProduct, 
+  deleteProduct, 
+  addCategory,
+  getWhatsAppCheckoutUrl,
+  startFirebaseSync
+} from './storage';
+
+export default function App() {
+  // Global App States
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentView, setCurrentView] = useState<string>('home'); // home, shop, product, auth, dashboard, admin
+  const [viewParams, setViewParams] = useState<Record<string, any>>({});
+  
+  // Storage Lists
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  
+  // Cart state
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [cartOpen, setCartOpen] = useState<boolean>(false);
+
+  // Initialize App states from database
+  useEffect(() => {
+    const user = getCurrentUser();
+    setCurrentUser(user);
+    
+    // Set lists initially from cache
+    setProducts(getAllProducts());
+    setOrders(getAllOrders());
+    setUsers(getAllUsers());
+    setCategories(getAllCategories());
+
+    // Connect to real-time remote Firebase tables
+    startFirebaseSync(() => {
+      setProducts(getAllProducts());
+      setOrders(getAllOrders());
+      setUsers(getAllUsers());
+      setCategories(getAllCategories());
+    });
+
+    // Resolve Hash-based or basic path navigation for dynamic iframe refresh resilience
+    const handleHashChange = () => {
+      const hash = window.location.hash || '#home';
+      const cleanHash = hash.replace('#', '');
+      
+      if (cleanHash === 'home') {
+        setCurrentView('home');
+      } else if (cleanHash === 'shop') {
+        setCurrentView('shop');
+      } else if (cleanHash.startsWith('product?id=')) {
+        const prodId = cleanHash.split('?id=')[1];
+        if (prodId) {
+          setCurrentView('product');
+          setViewParams({ id: prodId });
+        }
+      } else if (cleanHash === 'dashboard') {
+        setCurrentView(user ? 'dashboard' : 'auth');
+      } else if (cleanHash === 'admin') {
+        setCurrentView(user?.role === 'admin' ? 'admin' : 'auth');
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    // Initial trigger
+    handleHashChange();
+
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Update Cart when user logs in or out
+  useEffect(() => {
+    if (currentUser) {
+      setCartItems(getCartForUser(currentUser.id));
+    } else {
+      // Guest local-storage cart fallback
+      setCartItems(getCartForUser('guest'));
+    }
+  }, [currentUser]);
+
+  // Sync Cart items with permanent Storage and check bounds
+  const updateCartStateAndPersist = (newItems: CartItem[]) => {
+    setCartItems(newItems);
+    const idKey = currentUser ? currentUser.id : 'guest';
+    saveCartForUser(idKey, newItems);
+  };
+
+  // Navigates securely with window coordinates scroll resetting
+  const handleNavigate = (view: string, extraParams: Record<string, any> = {}) => {
+    setCurrentView(view);
+    setViewParams(extraParams);
+    
+    // Hash updates to persist route history on iframe reloads
+    if (view === 'product' && extraParams.id) {
+      window.location.hash = `product?id=${extraParams.id}`;
+    } else {
+      window.location.hash = view;
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Handle Authentication flow success
+  const handleAuthSuccess = (user: UserProfile) => {
+    setCurrentUser(user);
+    // Refresh listing counters
+    setUsers(getAllUsers());
+  };
+
+  // Handle Logout session clearing
+  const handleLogout = () => {
+    logoutUser();
+    setCurrentUser(null);
+    handleNavigate('home');
+    alert('Logged out securely from playbook session.');
+  };
+
+  // Bag Action 1: Add or increment items inside bag
+  const handleAddToCart = (item: Omit<CartItem, 'id' | 'quantity'>, quantity: number) => {
+    const compositeId = `${item.productId}_${item.size}_${item.color.replace('#', '')}`;
+    
+    const existingIdx = cartItems.findIndex(i => i.id === compositeId);
+    let updated = [...cartItems];
+
+    if (existingIdx !== -1) {
+      const currentQty = updated[existingIdx].quantity;
+      const proposedQty = currentQty + quantity;
+      
+      if (proposedQty <= item.stock) {
+        updated[existingIdx].quantity = proposedQty;
+        alert(`Incremented look in bag index. Total: ${proposedQty}`);
+      } else {
+        alert(`Sorry, you have exceeded the maximum available studio stock of ${item.stock} for this size/color.`);
+        return;
+      }
+    } else {
+      updated.push({
+        ...item,
+        id: compositeId,
+        quantity,
+      });
+      alert('Streetwear garment styled and added to bag.');
+    }
+
+    updateCartStateAndPersist(updated);
+    // Auto slide-open the gorgeous cart drawer so they feel immediate visual confirmation!
+    setCartOpen(true);
+  };
+
+  // Bag Action 2: Update exact number from cart drawer
+  const handleUpdateQuantity = (itemId: string, qty: number) => {
+    const target = cartItems.find(i => i.id === itemId);
+    if (!target) return;
+
+    if (qty > target.stock) {
+      alert(`Limit reached: Maximum available studio stock is ${target.stock}.`);
+      return;
+    }
+
+    const updated = cartItems.map(item => {
+      if (item.id === itemId) {
+        return { ...item, quantity: qty };
+      }
+      return item;
+    });
+
+    updateCartStateAndPersist(updated);
+  };
+
+  // Bag Action 3: Remove look entirely
+  const handleRemoveItem = (itemId: string) => {
+    const updated = cartItems.filter(i => i.id !== itemId);
+    updateCartStateAndPersist(updated);
+  };
+
+  // Checkout process: Converts Cart into real Order record & triggers WhatsApp opens!
+  const handleCheckoutSubmit = () => {
+    if (!currentUser) {
+      alert('Sign-In Authentication is required to allocate dynamic order numbers.');
+      handleNavigate('auth');
+      setCartOpen(false);
+      return;
+    }
+
+    if (cartItems.length === 0) {
+      alert('Your bag is currently empty.');
+      return;
+    }
+
+    // Attempt to acquire addresses or fallback to user model values
+    const defaultAddress = currentUser.addresses?.find(a => a.isDefault);
+    const completeAddressStr = defaultAddress 
+      ? `${defaultAddress.street}, ${defaultAddress.city}, ${defaultAddress.state} ${defaultAddress.zip}, ${defaultAddress.country}`
+      : 'No verified terminal address allocated. Standard Studio pickup.';
+
+    const clientPhone = currentUser.phone || '+1 (555) 019-2834';
+
+    const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    const shipping = 0;
+    const total = subtotal;
+
+    // Create the finalized Order record
+    const newOrder = createOrder(
+      currentUser.id,
+      `${currentUser.firstName} ${currentUser.lastName}`,
+      currentUser.email,
+      clientPhone,
+      completeAddressStr,
+      cartItems,
+      subtotal,
+      shipping,
+      total
+    );
+
+    // Refresh database lists
+    setOrders(getAllOrders());
+    setProducts(getAllProducts()); // update stock views immediately!
+    setCartItems([]); // clear UI state
+    setCartOpen(false); // close drawer
+
+    // Navigate them directly to their Orders History board! (Screenshot 5 visual)
+    handleNavigate('dashboard');
+    alert(`Order Created Successfully! Your unique code is ${newOrder.orderNumber}. Redirecting to confirm payment via WhatsApp...`);
+
+    // Automatic trigger to launch WhatsApp desktop/mobile with parsed templates!
+    const waUrl = getWhatsAppCheckoutUrl(newOrder);
+    window.open(waUrl, '_blank');
+  };
+
+  // Instant checkout button directly from dynamic product templates
+  const handleInstantBuyNowWhatsApp = (
+    itemData: Omit<CartItem, 'id' | 'quantity'>,
+    size: string,
+    color: string,
+    qty: number
+  ) => {
+    if (!currentUser) {
+      alert('Please create or login to your customer account to authorize WhatsApp checkouts.');
+      handleNavigate('auth');
+      return;
+    }
+
+    const subtotal = itemData.price * qty;
+    const shipping = 0;
+    const total = subtotal;
+
+    const dummyItem: CartItem = {
+      id: `${itemData.productId}_${size}_${color.replace('#', '')}`,
+      ...itemData,
+      size,
+      color,
+      quantity: qty
+    };
+
+    const defaultAddress = currentUser.addresses?.find(a => a.isDefault);
+    const completeAddressStr = defaultAddress 
+      ? `${defaultAddress.street}, ${defaultAddress.city}, ${defaultAddress.state} ${defaultAddress.zip}, ${defaultAddress.country}`
+      : 'Direct instant product buy checkpoint.';
+
+    const customOrder = createOrder(
+      currentUser.id,
+      `${currentUser.firstName} ${currentUser.lastName}`,
+      currentUser.email,
+      currentUser.phone,
+      completeAddressStr,
+      [dummyItem],
+      subtotal,
+      shipping,
+      total
+    );
+
+    // Refresh db view states
+    setOrders(getAllOrders());
+    setProducts(getAllProducts());
+    setCartItems([]);
+
+    handleNavigate('dashboard');
+    
+    // Redirect to WhatsApp
+    const waUrl = getWhatsAppCheckoutUrl(customOrder);
+    window.open(waUrl, '_blank');
+  };
+
+  // Admin Studio triggers: Write back and refresh list states
+  const handleAdminAddProduct = (prodData: Omit<Product, 'id' | 'createdAt'>) => {
+    addProduct(prodData);
+    setProducts(getAllProducts()); // refresh state
+  };
+
+  const handleAdminUpdateProduct = (id: string, updatedData: Partial<Product>) => {
+    updateProduct(id, updatedData);
+    setProducts(getAllProducts());
+  };
+
+  const handleAdminDeleteProduct = (id: string) => {
+    deleteProduct(id);
+    setProducts(getAllProducts());
+  };
+
+  const handleAdminOrderStatus = (orderId: string, status: Order['status']) => {
+    updateOrderStatus(orderId, status);
+    setOrders(getAllOrders());
+  };
+
+  const handleAdminAddCategory = (name: string) => {
+    addCategory(name);
+    setCategories(getAllCategories());
+  };
+
+  // Derived Values
+  const totalCartCount = useMemo(() => {
+    return cartItems.reduce((acc, item) => acc + item.quantity, 0);
+  }, [cartItems]);
+
+  // Related Look Selection Generator
+  const selectedProductForViews = useMemo(() => {
+    if (currentView === 'product' && viewParams.id) {
+      return products.find(p => p.id === viewParams.id) || null;
+    }
+    return null;
+  }, [currentView, viewParams, products]);
+
+  const relatedProductsList = useMemo(() => {
+    if (selectedProductForViews) {
+      return products.filter(
+        p => p.id !== selectedProductForViews.id && p.category === selectedProductForViews.category
+      );
+    }
+    return [];
+  }, [selectedProductForViews, products]);
+
+  return (
+    <div className="min-h-screen bg-background text-on-background flex flex-col font-sans select-none antialiased">
+      
+      {/* 1. BRAND GLOBAL HEADER */}
+      <Header
+        currentUser={currentUser}
+        cartCount={totalCartCount}
+        onNavigate={handleNavigate}
+        onOpenCart={() => setCartOpen(true)}
+        onLogout={handleLogout}
+        currentView={currentView}
+      />
+
+      {/* 2. DYNAMIC CONTENT MAIN ROUTER CANVAS */}
+      <main className="flex-grow flex flex-col animate-fade-in">
+        
+        {currentView === 'home' && (
+          <HomeView 
+            products={products} 
+            onNavigate={handleNavigate} 
+          />
+        )}
+
+        {currentView === 'shop' && (
+          <ShopView
+            products={products}
+            onNavigate={handleNavigate}
+            initialFilters={viewParams}
+          />
+        )}
+
+        {currentView === 'product' && selectedProductForViews ? (
+          <ProductDetailView
+            product={selectedProductForViews}
+            relatedProducts={relatedProductsList.length ? relatedProductsList : products.filter(p => p.id !== selectedProductForViews.id)}
+            onAddToCart={handleAddToCart}
+            onNavigate={handleNavigate}
+            onQuickCheckoutViaWhatsApp={handleInstantBuyNowWhatsApp}
+          />
+        ) : currentView === 'product' ? (
+          <div className="flex-grow flex flex-col items-center justify-center p-20 text-center space-y-4">
+            <p className="font-mono text-xs text-secondary">LOOK ARCHIVE STACK LOST</p>
+            <h3 className="font-headline-sm text-base text-primary">GARMENT STANDARD NOT LOCATED</h3>
+            <button
+              onClick={() => handleNavigate('shop')}
+              className="bg-primary text-on-primary text-xs font-label-caps px-6 py-2.5 uppercase tracking-widest rounded-none"
+            >
+              Shop All
+            </button>
+          </div>
+        ) : null}
+
+        {currentView === 'auth' && (
+          <AuthView
+            onAuthSuccess={handleAuthSuccess}
+            onNavigate={handleNavigate}
+          />
+        )}
+
+        {currentView === 'dashboard' && currentUser && (
+          <CustomerDashboard
+            currentUser={currentUser}
+            orders={orders.filter(o => o.userId === currentUser.id)}
+            onLogout={handleLogout}
+            onNavigate={handleNavigate}
+            onUpdateUser={(usr) => setCurrentUser(usr)}
+          />
+        )}
+
+        {currentView === 'admin' && currentUser?.role === 'admin' && (
+          <AdminDashboard
+            products={products}
+            orders={orders}
+            users={users}
+            categories={categories}
+            onAddProduct={handleAdminAddProduct}
+            onUpdateProduct={handleAdminUpdateProduct}
+            onDeleteProduct={handleAdminDeleteProduct}
+            onUpdateOrderStatus={handleAdminOrderStatus}
+            onAddCategory={handleAdminAddCategory}
+          />
+        )}
+      </main>
+
+      {/* 4. PERSISTENT BAG CHASSIS DRAWER OVERLAY */}
+      <CartDrawer
+        isOpen={cartOpen}
+        onClose={() => setCartOpen(false)}
+        cartItems={cartItems}
+        onUpdateQuantity={handleUpdateQuantity}
+        onRemoveItem={handleRemoveItem}
+        onCheckout={handleCheckoutSubmit}
+      />
+
+      {/* 5. BRAND GLOBAL FOOTER */}
+      <Footer onNavigate={handleNavigate} />
+    </div>
+  );
+}

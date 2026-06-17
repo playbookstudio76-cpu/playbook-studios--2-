@@ -1,0 +1,6 @@
+{
+  "name": "Playbook Studios",
+  "description": "A premium luxury streetwear e-commerce boutique with tailored filters, persistent carts, and simulated administration control panels.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
