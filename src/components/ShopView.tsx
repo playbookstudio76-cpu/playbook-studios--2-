@@ -13,7 +13,7 @@ export default function ShopView({ products, onNavigate, initialFilters }: ShopV
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const [maxPrice, setMaxPrice] = useState(500);
+  const [maxPrice, setMaxPrice] = useState(10000);
   const [sortBy, setSortBy] = useState('Newest');
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -108,7 +108,7 @@ export default function ShopView({ products, onNavigate, initialFilters }: ShopV
     setSearchQuery('');
     setSelectedCategory('all');
     setSelectedSize(null);
-    setMaxPrice(500);
+    setMaxPrice(10000);
     setSortBy('Newest');
     setCurrentPage(1);
   };
@@ -216,8 +216,8 @@ export default function ShopView({ products, onNavigate, initialFilters }: ShopV
               <input
                 type="range"
                 min="0"
-                max="500"
-                step="10"
+                max="10000"
+                step="100"
                 value={maxPrice}
                 onChange={(e) => {
                   setMaxPrice(Number(e.target.value));
@@ -227,7 +227,7 @@ export default function ShopView({ products, onNavigate, initialFilters }: ShopV
               />
               <div className="flex justify-between text-[10px] font-mono text-secondary pt-2">
                 <span>₹0</span>
-                <span>₹500+</span>
+                <span>₹10,000+</span>
               </div>
             </div>
           </div>

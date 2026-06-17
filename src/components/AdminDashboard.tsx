@@ -256,7 +256,7 @@ export default function AdminDashboard({
     setFormStock(15);
     setFormFeatured(false);
     setFormColorName('Core Edition');
-    setFormImagesText('https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=600&auto=format&fit=crop');
+    setFormImagesText('');
     setFormSizes(['S', 'M', 'L']);
     setFormColors(['#0A0A0A', '#EAEAEA']);
     setIsAddingProduct(true);
@@ -797,16 +797,17 @@ export default function AdminDashboard({
 
                 {/* Multiple Images URLs commas split */}
                 <div className="relative">
-                  <label className="font-label-caps text-[9px] text-secondary tracking-widest block uppercase mb-1">Multiple Image URLs (Comma Separated)</label>
+                  <label className="font-label-caps text-[9px] text-secondary tracking-widest block uppercase mb-1">Uploaded Image URLs (Populated via Cloudinary Only)</label>
                   <input
                     type="text"
                     required
+                    readOnly={true}
                     value={formImagesText}
                     onChange={(e) => setFormImagesText(e.target.value)}
-                    placeholder="URL 1, URL 2, URL 3"
-                    className="border-b border-outline-variant focus:border-primary focus:outline-none w-full pb-2 pt-1 text-sm bg-transparent rounded-none text-primary font-mono"
+                    placeholder="No images uploaded yet. Drop or browse images above to upload via Cloudinary."
+                    className="border-b border-outline-variant focus:outline-none w-full pb-2 pt-1 text-sm bg-neutral-100/50 cursor-not-allowed rounded-none text-secondary font-mono px-2"
                   />
-                  <span className="font-mono text-[8px] text-[#5d5f5f] block mt-1 uppercase">Recommended: Provide premium high-res unsplash landscape or streetwear links.</span>
+                  <span className="font-mono text-[8px] text-[#2563EB] block mt-1 uppercase font-semibold">🔒 Upload Restriction: Images must be securely uploaded through the Cloudinary uploader panel above.</span>
                 </div>
 
                 {/* SIZES CHOICE MULTI */}
