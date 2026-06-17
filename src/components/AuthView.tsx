@@ -52,17 +52,6 @@ export default function AuthView({ onAuthSuccess, onNavigate }: AuthViewProps) {
     }
   };
 
-  const loadDemoCustomer = () => {
-    setEmail('a.wright@example.com');
-    setPassword('demopass123');
-    setIsLogin(true);
-  };
-
-  const loadDemoAdmin = () => {
-    setEmail('playbookstudio79@gmail.com');
-    setPassword('adminpass79');
-    setIsLogin(true);
-  };
 
   return (
     <div className="flex-grow flex flex-col md:flex-row min-h-[calc(100vh-120px)]">
