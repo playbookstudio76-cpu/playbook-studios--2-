@@ -39,10 +39,10 @@ export default function HomeView({ products, onNavigate }: HomeViewProps) {
             FALL / WINTER 2026
           </p>
           <h1 className="font-display-lg text-[32px] md:text-[48px] leading-tight tracking-tight font-medium text-primary mb-4 uppercase">
-            THE NEW STANDARD
+            playbook studioS
           </h1>
           <p className="font-body-md text-xs md:text-sm text-secondary leading-relaxed mb-8">
-            A study in structured silhouettes and fluid fabrics. Redefining modern utility for the urban environment. Made with premium, wind-resistant double cotton weaving.
+            Redefining modern utility for the urban environment.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4">
