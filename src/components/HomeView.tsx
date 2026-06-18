@@ -90,12 +90,12 @@ export default function HomeView({ products, onNavigate, socialConfig, categorie
                 className="group cursor-pointer flex flex-col"
               >
                 {/* Image Frame */}
-                <div className="bg-surface-container-low overflow-hidden aspect-[3/4] mb-4 relative">
+                <div className="bg-surface-container-low overflow-hidden aspect-[3/4] mb-4 relative flex items-center justify-center">
                   <img
                     src={item.images[0]}
                     alt={item.name}
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover object-center group-hover:scale-[1.03] transition-transform duration-700"
+                    className="w-full h-full object-contain object-center group-hover:scale-[1.03] transition-transform duration-700 bg-zinc-50"
                   />
                   <div className="absolute hover:opacity-10 opacity-0 inset-0 bg-black" />
                 </div>
@@ -170,16 +170,16 @@ export default function HomeView({ products, onNavigate, socialConfig, categorie
                 onClick={() => onNavigate('product', { id: prod.id })}
                 className="group cursor-pointer flex flex-col"
               >
-                <div className="bg-surface-container aspect-[3/4] overflow-hidden mb-4 relative">
+                <div className="bg-surface-container aspect-[3/4] overflow-hidden mb-4 relative flex items-center justify-center bg-zinc-50">
                   <img
                     src={prod.images[0]}
                     alt={prod.name}
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover object-center group-hover:scale-[1.03] transition-transform duration-700"
+                    className="w-full h-full object-contain object-center group-hover:scale-[1.03] transition-transform duration-700"
                   />
                   {prod.discountPrice && (
-                    <div className="absolute top-3 left-3 bg-secondary text-white text-[9px] font-label-caps px-2 py-1 uppercase tracking-widest">
-                      SALE
+                    <div className="absolute top-3 left-3 bg-rose-600 text-white text-[9px] font-bold px-2 py-1 uppercase tracking-wider">
+                      {Math.round(((prod.price - prod.discountPrice) / prod.price) * 100)}% OFF
                     </div>
                   )}
                 </div>
@@ -187,11 +187,12 @@ export default function HomeView({ products, onNavigate, socialConfig, categorie
                   <span className="text-secondary text-[10px] tracking-wider truncate mr-2">
                     {prod.category}
                   </span>
-                  <div className="flex space-x-1">
+                  <div className="flex space-x-1 items-center">
                     {prod.discountPrice ? (
                       <>
                         <span className="text-red-500 font-semibold">₹{prod.discountPrice.toLocaleString()}</span>
-                        <span className="text-on-primary-fixed-variant line-through font-normal">₹{prod.price.toLocaleString()}</span>
+                        <span className="text-on-primary-fixed-variant line-through font-normal text-[10px]">₹{prod.price.toLocaleString()}</span>
+                        <span className="text-emerald-600 font-extrabold text-[8.5px] tracking-normal lowercase ml-1">({Math.round(((prod.price - prod.discountPrice) / prod.price) * 100)}% off)</span>
                       </>
                     ) : (
                       <span className="text-primary font-semibold">₹{prod.price.toLocaleString()}</span>

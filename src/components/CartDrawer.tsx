@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react';
 import { X, Trash2, Plus, Minus, ArrowRight, ShoppingCart } from 'lucide-react';
-import { CartItem } from '../types';
+import { CartItem, UserProfile } from '../types';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -7,7 +8,8 @@ interface CartDrawerProps {
   cartItems: CartItem[];
   onUpdateQuantity: (id: string, qty: number) => void;
   onRemoveItem: (id: string) => void;
-  onCheckout: () => void;
+  onCheckout: (deliveryAddress: string) => void;
+  currentUser: UserProfile | null;
 }
 
 export default function CartDrawer({
@@ -17,7 +19,25 @@ export default function CartDrawer({
   onUpdateQuantity,
   onRemoveItem,
   onCheckout,
+  currentUser,
 }: CartDrawerProps) {
+  const [address, setAddress] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      if (currentUser) {
+        const defaultAddress = currentUser.addresses?.find(a => a.isDefault);
+        if (defaultAddress) {
+          setAddress(`${defaultAddress.street}, ${defaultAddress.city}, ${defaultAddress.state} ${defaultAddress.zip}, ${defaultAddress.country}`.trim());
+        } else {
+          setAddress('');
+        }
+      } else {
+        setAddress('');
+      }
+    }
+  }, [currentUser, isOpen]);
+
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const total = subtotal;
 
@@ -147,15 +167,40 @@ export default function CartDrawer({
                 </div>
               </div>
 
-              <div className="pt-2">
+              {/* Delivery Address Form Block */}
+              <div className="space-y-1.5 pt-2 border-t border-dashed border-outline-variant">
+                <label className="text-[10px] font-label-caps tracking-widest text-secondary uppercase font-bold block">
+                  Delivery Address (Required)
+                </label>
+                <textarea
+                  rows={2}
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="e.g. House No, Street name, Landmark, City, State, PIN code"
+                  className="w-full text-xs font-mono p-2 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none shadow-sm resize-none"
+                />
+              </div>
+
+              <div className="pt-1">
                 <button
-                  onClick={onCheckout}
+                  onClick={() => {
+                    const trimmedAddr = address.trim();
+                    if (!currentUser) {
+                      onCheckout('');
+                      return;
+                    }
+                    if (!trimmedAddr) {
+                      alert('Please specify your Delivery Address before proceeding with checkout.');
+                      return;
+                    }
+                    onCheckout(trimmedAddr);
+                  }}
                   className="w-full bg-primary text-on-primary font-button-text font-semibold uppercase text-xs tracking-widest py-4 hover:bg-opacity-95 transition-all text-center flex items-center justify-center space-x-2"
                 >
                   <span>Go to Checkout & Auto-checkout via WhatsApp</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
-                <p className="text-[10px] font-mono text-secondary text-center mt-3 leading-relaxed">
+                <p className="text-[9px] font-mono text-secondary text-center mt-2 leading-relaxed">
                   Your order will be logged securely in local database. Submitting will automatically open WhatsApp for instant, production-ready payment matching.
                 </p>
               </div>

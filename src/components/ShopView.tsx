@@ -332,19 +332,19 @@ export default function ShopView({ products, onNavigate, initialFilters }: ShopV
                       ) : null}
                       
                       {prod.discountPrice && (
-                        <span className="bg-primary text-on-primary text-[9px] font-label-caps tracking-widest px-2 py-0.5 uppercase">
-                          PROMO
+                        <span className="bg-rose-600 text-white text-[9px] font-bold tracking-wider px-2 py-0.5 uppercase">
+                          {Math.round(((prod.price - prod.discountPrice) / prod.price) * 100)}% OFF
                         </span>
                       )}
                     </div>
 
                     {/* Image Box */}
-                    <div className="bg-surface-container aspect-[3 / 4] overflow-hidden mb-4 relative z-0">
+                    <div className="bg-surface-container aspect-[3 / 4] overflow-hidden mb-4 relative z-0 flex items-center justify-center bg-zinc-50">
                       <img
                         src={prod.images[0]}
                         alt={prod.name}
                         referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover object-center group-hover:scale-[1.03] transition-transform duration-700"
+                        className="w-full h-full object-contain object-center group-hover:scale-[1.03] transition-transform duration-700"
                       />
                       <div className="absolute inset-0 bg-transparent hover:bg-black/5 transition duration-300" />
                     </div>
@@ -356,9 +356,12 @@ export default function ShopView({ products, onNavigate, initialFilters }: ShopV
                       </span>
                       <span className="text-primary font-semibold font-mono tracking-tight shrink-0">
                         {prod.discountPrice ? (
-                          <span className="space-x-1">
+                          <span className="space-x-1 flex items-center justify-end">
                             <span className="text-red-500">₹{prod.discountPrice.toLocaleString()}</span>
                             <span className="text-on-primary-fixed-variant line-through font-normal text-[10px]">₹{prod.price.toLocaleString()}</span>
+                            <span className="text-emerald-600 font-extrabold text-[8.5px] lowercase normal-case tracking-normal ml-1 shrink-0">
+                              ({Math.round(((prod.price - prod.discountPrice) / prod.price) * 100)}% off)
+                            </span>
                           </span>
                         ) : (
                           `₹${prod.price.toLocaleString()}`

@@ -222,7 +222,7 @@ export default function App() {
   };
 
   // Checkout process: Converts Cart into real Order record & triggers WhatsApp opens!
-  const handleCheckoutSubmit = () => {
+  const handleCheckoutSubmit = (deliveryAddress: string) => {
     if (!currentUser) {
       alert('Sign-In Authentication is required to allocate dynamic order numbers.');
       handleNavigate('auth');
@@ -235,12 +235,7 @@ export default function App() {
       return;
     }
 
-    // Attempt to acquire addresses or fallback to user model values
-    const defaultAddress = currentUser.addresses?.find(a => a.isDefault);
-    const completeAddressStr = defaultAddress 
-      ? `${defaultAddress.street}, ${defaultAddress.city}, ${defaultAddress.state} ${defaultAddress.zip}, ${defaultAddress.country}`
-      : 'No verified terminal address allocated. Standard Studio pickup.';
-
+    const completeAddressStr = deliveryAddress.trim() || 'No verified terminal address allocated. Standard Studio pickup.';
     const clientPhone = currentUser.phone || '+1 (555) 019-2834';
 
     const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -288,6 +283,18 @@ export default function App() {
       return;
     }
 
+    const defaultAddress = currentUser.addresses?.find(a => a.isDefault);
+    const completeAddressStr = defaultAddress 
+      ? `${defaultAddress.street}, ${defaultAddress.city}, ${defaultAddress.state} ${defaultAddress.zip}, ${defaultAddress.country}`
+      : '';
+
+    const promptAddress = window.prompt("Please specify your Delivery Address before checkout:", completeAddressStr);
+    if (promptAddress === null) {
+      // User cancelled checkout
+      return;
+    }
+    const finalAddressStr = promptAddress.trim() || completeAddressStr || "No verified address allocated.";
+
     const subtotal = itemData.price * qty;
     const shipping = 0;
     const total = subtotal;
@@ -300,17 +307,12 @@ export default function App() {
       quantity: qty
     };
 
-    const defaultAddress = currentUser.addresses?.find(a => a.isDefault);
-    const completeAddressStr = defaultAddress 
-      ? `${defaultAddress.street}, ${defaultAddress.city}, ${defaultAddress.state} ${defaultAddress.zip}, ${defaultAddress.country}`
-      : 'Direct instant product buy checkpoint.';
-
     const customOrder = createOrder(
       currentUser.id,
       `${currentUser.firstName} ${currentUser.lastName}`,
       currentUser.email,
       currentUser.phone,
-      completeAddressStr,
+      finalAddressStr,
       [dummyItem],
       subtotal,
       shipping,
@@ -538,6 +540,7 @@ export default function App() {
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveItem}
         onCheckout={handleCheckoutSubmit}
+        currentUser={currentUser}
       />
 
       {/* 5. BRAND GLOBAL FOOTER */}

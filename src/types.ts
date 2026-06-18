@@ -54,6 +54,7 @@ export interface Product {
   category: string;
   price: number;
   discountPrice?: number;
+  productCode?: string; // administrative code, hidden from clients
   sizes: string[];
   colors: string[];
   stock: number;

@@ -82,7 +82,7 @@ export function cleanFirestoreData<T extends any>(val: T): T {
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   const clean = email.trim().toLowerCase();
-  return clean === 'playbookstudio76@gmail.com' || clean === 'playbookstudio76@gmail.com76@gmail.com@gmail.com';
+  return clean === 'playbookstudio76@gmail.com' || clean === 'playbookstudio76@gmail.com@gmail.com';
 }
 
 // Error handling types and enumerations as requested by the Firebase Skill constraints
@@ -861,9 +861,9 @@ export function createOrder(
   const userOrdersPrior = orders.filter(o => o.userId === userId);
   const isFirstOrder = userOrdersPrior.length === 0;
 
-  // Generate high-end unique order number
-  const uniqueNumCode = Math.floor(1000 + Math.random() * 9000);
-  const orderNumber = `PB-${uniqueNumCode}`;
+  // Generate sequential order number starting with 0001
+  const nextNum = orders.length + 1;
+  const orderNumber = `PB-${nextNum.toString().padStart(4, '0')}`;
   
   const newOrder: Order & { walletApplied?: number; couponCodeApplied?: string } = {
     id: 'ord_' + Math.random().toString(36).substr(2, 9),

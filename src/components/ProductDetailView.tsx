@@ -139,19 +139,19 @@ export default function ProductDetailView({
                   src={img}
                   alt={`Thumbnail ${idx}`}
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover object-center"
+                  className="w-full h-full object-contain object-center bg-zinc-50"
                 />
               </button>
             ))}
           </div>
 
           {/* B. Large Primary Display Box */}
-          <div className="flex-grow aspect-[3/4] bg-surface-container-low overflow-hidden relative border border-surface-container">
+          <div className="flex-grow aspect-[3/4] bg-white overflow-hidden relative border border-surface-container flex items-center justify-center">
             <img
               src={galleryImages[activeImageIdx]}
               alt={product.name}
               referrerPolicy="no-referrer"
-              className="w-full h-full object-cover object-center transition-transform duration-1000 hover:scale-105"
+              className="w-full h-full object-contain object-center transition-transform duration-1000 hover:scale-[1.02]"
             />
             {product.stock === 0 && (
               <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center">
@@ -171,7 +171,7 @@ export default function ProductDetailView({
             <h1 className="font-display-lg text-[28px] md:text-[36px] tracking-tight text-primary uppercase font-semibold">
               {product.name}
             </h1>
-            <div className="flex items-center space-x-3 mt-3">
+            <div className="flex items-center space-x-3 mt-3 flex-wrap gap-y-2">
               {product.discountPrice ? (
                 <>
                   <span className="font-mono text-xl font-semibold text-red-500">
@@ -179,6 +179,9 @@ export default function ProductDetailView({
                   </span>
                   <span className="font-mono text-sm text-secondary line-through">
                     ₹{product.price.toLocaleString()}
+                  </span>
+                  <span className="text-emerald-700 font-extrabold font-sans text-[10px] bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 uppercase tracking-wider rounded-none shrink-0">
+                    {Math.round(((product.price - product.discountPrice) / product.price) * 100)}% OFF
                   </span>
                 </>
               ) : (
@@ -391,12 +394,12 @@ export default function ProductDetailView({
                 }}
                 className="group cursor-pointer flex flex-col"
               >
-                <div className="bg-surface-container aspect-[3/4] overflow-hidden mb-4 relative">
+                <div className="bg-surface-container aspect-[3/4] overflow-hidden mb-4 relative flex items-center justify-center bg-zinc-50">
                   <img
                     src={lookProd.images[0]}
                     alt={lookProd.name}
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover object-center group-hover:scale-105 transition duration-700"
+                    className="w-full h-full object-contain object-center group-hover:scale-105 transition duration-700"
                   />
                 </div>
                 <h4 className="font-label-caps text-[10px] tracking-widest text-secondary uppercase">

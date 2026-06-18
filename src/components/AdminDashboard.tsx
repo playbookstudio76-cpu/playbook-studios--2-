@@ -123,6 +123,8 @@ export default function AdminDashboard({
   const [formImagesText, setFormImagesText] = useState(''); // comma separated URLs
   const [formSizes, setFormSizes] = useState<string[]>(['S', 'M', 'L']);
   const [formColors, setFormColors] = useState<string[]>(['#000000', '#FFFFFF']);
+  const [formProductCode, setFormProductCode] = useState('');
+  const [customColorPickerVal, setCustomColorPickerVal] = useState('#0B0B0A');
   
   // Cloudinary Direct Uploader states
   const [uploading, setUploading] = useState(false);
@@ -368,6 +370,7 @@ The Playbook Studios Atelier Team`);
     setFormImagesText(prod.images.join(', '));
     setFormSizes(prod.sizes);
     setFormColors(prod.colors);
+    setFormProductCode(prod.productCode || '');
     setIsAddingProduct(true);
   };
 
@@ -385,6 +388,7 @@ The Playbook Studios Atelier Team`);
     setFormImagesText('');
     setFormSizes(['S', 'M', 'L']);
     setFormColors(['#0A0A0A', '#EAEAEA']);
+    setFormProductCode('');
     setIsAddingProduct(true);
   };
 
@@ -414,6 +418,7 @@ The Playbook Studios Atelier Team`);
       images: imagesArray,
       sizes: formSizes,
       colors: formColors,
+      productCode: formProductCode.trim().toUpperCase() || undefined,
     };
 
     setIsSavingCloud(true);
@@ -883,7 +888,7 @@ The Playbook Studios Atelier Team`);
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
                   {/* Stock count */}
                   <div className="relative">
                     <label className="font-label-caps text-[9px] text-secondary tracking-widest block uppercase mb-1">Atelier Stock Quantity</label>
@@ -905,6 +910,18 @@ The Playbook Studios Atelier Team`);
                       value={formColorName}
                       onChange={(e) => setFormColorName(e.target.value)}
                       placeholder="e.g. Black / Core"
+                      className="border-b border-outline-variant focus:border-primary focus:outline-none w-full pb-2 pt-1 text-sm rounded-none bg-transparent text-primary"
+                    />
+                  </div>
+
+                  {/* Product Code */}
+                  <div className="relative">
+                    <label className="font-label-caps text-[9px] text-secondary tracking-widest block uppercase mb-1">Product Code (Admin Only)</label>
+                    <input
+                      type="text"
+                      value={formProductCode}
+                      onChange={(e) => setFormProductCode(e.target.value)}
+                      placeholder="e.g. ATH-BLK-23"
                       className="border-b border-outline-variant focus:border-primary focus:outline-none w-full pb-2 pt-1 text-sm rounded-none bg-transparent text-primary"
                     />
                   </div>
@@ -1022,26 +1039,104 @@ The Playbook Studios Atelier Team`);
                 </div>
 
                 {/* COLORS CHOICE MULTI CIRCULAR */}
-                <div className="space-y-2">
-                  <span className="font-label-caps text-[9px] text-secondary tracking-widest block uppercase font-bold">Colors Available</span>
-                  <div className="flex gap-4">
-                    {AVAILABLE_COLORS.map(col => {
-                      const sel = formColors.includes(col.hex);
-                      return (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="font-label-caps text-[9px] text-secondary tracking-widest block uppercase font-bold">Colors Available</span>
+                    <span className="text-[8.5px] font-mono text-zinc-400 capitalize">Manage custom color definitions dynamically</span>
+                  </div>
+
+                  {/* Active Selected Colors (Click to remove) */}
+                  <div className="flex flex-wrap gap-2 items-center bg-neutral-50 p-3 border border-outline-variant">
+                    {formColors.map(hex => (
+                      <div 
+                        key={hex} 
+                        className="flex items-center space-x-2 p-1 pl-2 border border-outline-variant pr-2 bg-white rounded shadow-sm hover:border-red-400 transition"
+                      >
+                        <span 
+                          className="w-3.5 h-3.5 rounded-full border border-zinc-200 block shrink-0" 
+                          style={{ backgroundColor: hex }} 
+                        />
+                        <span className="font-mono text-[9px] text-primary">{hex.toUpperCase()}</span>
                         <button
-                          key={col.hex}
                           type="button"
-                          onClick={() => toggleColorSelection(col.hex)}
-                          className={`w-8 h-8 rounded-full border flex items-center justify-center relative transition ${
-                            sel ? 'ring-2 ring-primary ring-offset-2' : 'opacity-80 hover:opacity-100'
-                          }`}
-                          style={{ backgroundColor: col.hex, borderColor: '#D1D1D1' }}
-                          title={col.name}
+                          onClick={() => setFormColors(prev => prev.filter(c => c !== hex))}
+                          className="text-red-500 hover:text-red-700 font-bold ml-1.5 text-[11px] hover:scale-110 active:scale-95 transition"
+                          title="Remove color"
                         >
-                          {sel && <Check className="w-4 h-4 text-[#ba1a1a] stroke-[3]" />}
+                          ×
                         </button>
-                      );
-                    })}
+                      </div>
+                    ))}
+                    {formColors.length === 0 && (
+                      <span className="text-[10px] text-zinc-400 italic font-mono uppercase bg-zinc-100/50 px-2.5 py-1">No colors selected or entered.</span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Built-in Pre-set shortcuts */}
+                    <div className="space-y-1.5 border border-outline-variant p-3 bg-white">
+                      <span className="text-[8.5px] font-mono uppercase text-secondary block font-bold tracking-wider">Presets Quick-Add:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {AVAILABLE_COLORS.map(col => {
+                          const isAdded = formColors.includes(col.hex);
+                          return (
+                            <button
+                              key={col.hex}
+                              type="button"
+                              onClick={() => {
+                                if (isAdded) {
+                                  setFormColors(prev => prev.filter(c => c !== col.hex));
+                                } else {
+                                  setFormColors(prev => [...prev, col.hex]);
+                                }
+                              }}
+                              className={`px-2 py-1 flex items-center space-x-1.5 border text-[9px] transition ${
+                                isAdded ? 'border-primary bg-primary/5 font-semibold text-primary' : 'border-outline-variant hover:border-zinc-400 text-secondary'
+                              }`}
+                            >
+                              <span className="w-2.5 h-2.5 rounded-full border border-zinc-200" style={{ backgroundColor: col.hex }} />
+                              <span>{col.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Custom color picker + input */}
+                    <div className="space-y-1.5 border border-outline-variant p-3 bg-white flex flex-col justify-center">
+                      <span className="text-[8.5px] font-mono uppercase text-secondary block font-bold tracking-wider">Custom Hex & Picker:</span>
+                      <div className="flex items-center space-x-2 bg-neutral-50 px-2 py-1 border border-outline-variant">
+                        <input
+                          type="color"
+                          value={customColorPickerVal}
+                          onChange={(e) => setCustomColorPickerVal(e.target.value)}
+                          className="w-8 h-8 rounded border cursor-pointer bg-transparent border-outline-variant flex-shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={customColorPickerVal}
+                          onChange={(e) => setCustomColorPickerVal(e.target.value)}
+                          placeholder="#FF0000"
+                          className="border-b border-light-outline-variant w-20 text-center text-[10px] font-mono text-primary bg-transparent focus:outline-none uppercase"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const val = customColorPickerVal.trim();
+                            if (/^#[0-9A-F]{6}$/i.test(val)) {
+                              if (!formColors.includes(val)) {
+                                setFormColors(prev => [...prev, val]);
+                              }
+                            } else {
+                              alert("Please enter a valid hex color starting with # followed by 6 hex characters.");
+                            }
+                          }}
+                          className="bg-primary text-on-primary text-[10px] uppercase font-bold py-1.5 px-4 hover:opacity-90 active:scale-95 transition tracking-widest rounded-none flex items-center"
+                        >
+                          + ADD
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1121,7 +1216,14 @@ The Playbook Studios Atelier Team`);
                         <td className="px-6 py-4">
                           <div className="space-y-0.5">
                             <p className="font-semibold uppercase text-black">{p.name}</p>
-                            <p className="font-mono text-[9px] text-[#5d5f5f]">{p.id} / {p.colorName || 'No Specific Color'}</p>
+                            <div className="font-mono text-[9px] text-[#5d5f5f] flex flex-wrap items-center gap-x-2">
+                              <span>{p.id} / {p.colorName || 'No Specific Color'}</span>
+                              {p.productCode && (
+                                <span className="bg-[#EAEAEA] text-[#0A0A0A] font-bold text-[8px] px-1.5 py-0.5 font-mono select-all">
+                                  CODE: {p.productCode}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
 
@@ -1279,10 +1381,25 @@ The Playbook Studios Atelier Team`);
 
                     {/* Customer Info */}
                     <td className="px-6 py-4">
-                      <div className="space-y-0.5">
-                        <p className="font-semibold text-black uppercase">{o.customerName}</p>
-                        <p className="font-mono text-[9px] text-[#5d5f5f]">{o.customerEmail}</p>
-                        <p className="font-mono text-[9px] text-zinc-400">{o.customerPhone}</p>
+                      <div className="space-y-1.5">
+                        <div className="space-y-0.5">
+                          <p className="font-semibold text-black uppercase">{o.customerName}</p>
+                          <p className="font-mono text-[9px] text-[#5d5f5f]">{o.customerEmail} | {o.customerPhone}</p>
+                        </div>
+                        {/* Ordered Items Details with Product Code */}
+                        <div className="mt-1 pt-1 border-t border-dashed border-zinc-100 space-y-1">
+                          {o.items.map((item, idx) => {
+                            const matchedProd = products.find(p => p.id === item.productId);
+                            const code = matchedProd?.productCode || 'N/A';
+                            return (
+                              <div key={idx} className="font-mono text-[9px] text-secondary flex flex-wrap items-center gap-x-1">
+                                <span className="text-[#0A0A0A] font-medium">• {item.name}</span>
+                                <span className="bg-neutral-100 text-[#0a0a0a] px-1 py-0.2 text-[8px] rounded font-bold">CODE: {code}</span>
+                                <span>({item.color} / Sz {item.size}) x{item.quantity}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </td>
 
