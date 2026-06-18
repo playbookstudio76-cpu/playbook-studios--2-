@@ -39,7 +39,7 @@ import {
   getAllCoupons, saveCoupon, deleteCoupon,
   getAllTeamMembers, saveTeamMember, deleteTeamMember,
   getAllNewsletterEmails, deleteNewsletterEmail, addNewsletterEmail,
-  getAllWallets, saveWalletRaw, updateUserWallet,
+  getAllWallets, saveWalletRaw, updateUserWallet, getUserWallet,
   getStoreConfig, saveStoreConfig,
   getWalletAndProfitSettings, saveWalletAndProfitSettings
 } from '../storage';
@@ -2744,19 +2744,54 @@ The Playbook Studios Atelier Team`);
                 <h3 className="font-display-md text-lg tracking-tight text-primary uppercase font-medium">Wallet & Profit Margin System Settings</h3>
                 <p className="font-sans text-[11px] text-secondary mt-0.5">Control client store credit signup bonuses, cashback limitations, and business profit safeguard margins.</p>
               </div>
-              <button
-                onClick={async () => {
-                  try {
-                    await saveWalletAndProfitSettings(wpSettings);
-                    alert("🎉 Wallet & Profit Margin Settings successfully deployed and committed!");
-                  } catch (err: any) {
-                    alert("Failure storing settings: " + (err.message || err));
-                  }
-                }}
-                className="bg-primary text-on-primary py-2.5 px-6 text-xs uppercase font-semibold tracking-widest hover:opacity-90 transition active:scale-95"
-              >
-                Save Settings
-              </button>
+              <div className="flex items-center space-x-3 flex-wrap gap-y-2">
+                <button
+                  onClick={async () => {
+                    if (window.confirm(`Are you sure you want to setup and overwrite the wallet pre-amount balance for ALL registered users to the current sign up bonus of ₹${wpSettings.signupBonus}?`)) {
+                      try {
+                        let successCount = 0;
+                        for (const u of users) {
+                          if (u.role !== 'admin') {
+                            const userWallet = getUserWallet(u.id);
+                            userWallet.balance = wpSettings.signupBonus;
+                            userWallet.transactions = [
+                              {
+                                id: "tx_admin_setup_" + Math.random().toString(36).substr(2, 9),
+                                amount: wpSettings.signupBonus,
+                                description: `🎁 Administrative Setup: Initialized Pre-Amount to ₹${wpSettings.signupBonus}`,
+                                createdAt: new Date().toISOString()
+                              },
+                              ...userWallet.transactions
+                            ];
+                            saveWalletRaw(userWallet);
+                            successCount++;
+                          }
+                        }
+                        setWalletsList(getAllWallets());
+                        alert(`🎉 Successfully initialized and setup the pre-amount balance to ₹${wpSettings.signupBonus} for ${successCount} user wallets!`);
+                      } catch (err: any) {
+                        alert("Error during bulk wallet setup: " + (err.message || err));
+                      }
+                    }
+                  }}
+                  className="bg-emerald-600 text-white-1 py-2.5 px-4 text-[10px] uppercase font-bold tracking-wider rounded hover:bg-emerald-700 transition active:scale-95 text-white"
+                >
+                  🚀 Setup Pre-amount for All Users
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await saveWalletAndProfitSettings(wpSettings);
+                      alert("🎉 Wallet & Profit Margin Settings successfully deployed and committed!");
+                    } catch (err: any) {
+                      alert("Failure storing settings: " + (err.message || err));
+                    }
+                  }}
+                  className="bg-primary text-on-primary py-2.5 px-6 text-xs uppercase font-semibold tracking-widest hover:opacity-90 transition active:scale-95"
+                >
+                  Save Settings
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-xs font-mono">

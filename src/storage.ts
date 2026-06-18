@@ -58,20 +58,31 @@ const KEYS = {
   WALLET_SETTINGS: 'pb_wallet_settings_db',
 };
 
-export function cleanFirestoreData<T extends object>(obj: T): T {
-  const cleaned = { ...obj } as any;
-  Object.keys(cleaned).forEach(key => {
-    if (cleaned[key] === undefined) {
-      delete cleaned[key];
-    }
-  });
-  return cleaned;
+export function cleanFirestoreData<T extends any>(val: T): T {
+  if (val === undefined) {
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return val.map(item => cleanFirestoreData(item)) as any;
+  }
+  if (val !== null && typeof val === 'object') {
+    const cleaned = { ...val } as any;
+    Object.keys(cleaned).forEach(key => {
+      if (cleaned[key] === undefined) {
+        delete cleaned[key];
+      } else if (typeof cleaned[key] === 'object' || Array.isArray(cleaned[key])) {
+        cleaned[key] = cleanFirestoreData(cleaned[key]);
+      }
+    });
+    return cleaned;
+  }
+  return val;
 }
 
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   const clean = email.trim().toLowerCase();
-  return clean === 'playbookstudio76@gmail.com';
+  return clean === 'playbookstudio76@gmail.com' || clean === 'playbookstudio76@gmail.com76@gmail.com@gmail.com';
 }
 
 // Error handling types and enumerations as requested by the Firebase Skill constraints
@@ -503,6 +514,9 @@ export async function signupUser(firstName: string, lastName: string, email: str
 
     // 3. Sync to Firestore
     await setDoc(doc(db, 'users', firebaseUser.uid), cleanFirestoreData(newUser));
+
+    // Also trigger wallet creation with default values
+    getUserWallet(firebaseUser.uid);
 
     return { success: true, user: newUser };
   } catch (err: any) {
@@ -936,7 +950,10 @@ export function updateOrderStatus(orderId: string, status: Order['status']): boo
 // WhatsApp redirect trigger link generator dynamically pulling phone from managed settings
 export function getWhatsAppCheckoutUrl(order: Order): string {
   const config = getWhatsAppConfig();
-  const rawNum = config.phoneNumber.replace(/[^0-9]/g, '');
+  let rawNum = config.phoneNumber.replace(/[^0-9]/g, '');
+  if (rawNum.length === 10) {
+    rawNum = '91' + rawNum;
+  }
   const itemsText = order.items
     .map(item => `• ${item.name} (${item.color} | Size ${item.size}) x${item.quantity}`)
     .join('%0A');
@@ -1085,18 +1102,17 @@ export function getWhatsAppConfig(): WhatsAppConfig {
   if (!data) {
     const defaultConfig: WhatsAppConfig = {
       id: 'whatsapp_config',
-      phoneNumber: '',
-      isEnabled: false,
+      phoneNumber: '919861239776',
+      isEnabled: true,
       prefilledMessageText: "Hey! I am interested in ordering: "
     };
     localStorage.setItem(KEYS.WHATSAPP_CONFIG, JSON.stringify(defaultConfig));
     return defaultConfig;
   }
   const parsed = JSON.parse(data);
-  // Reset the old pre-filled default Indian mock phone number if still present
-  if (parsed.phoneNumber === '919861239776') {
-    parsed.phoneNumber = '';
-    parsed.isEnabled = false;
+  if (!parsed.phoneNumber) {
+    parsed.phoneNumber = '919861239776';
+    parsed.isEnabled = true;
     localStorage.setItem(KEYS.WHATSAPP_CONFIG, JSON.stringify(parsed));
   }
   return parsed;
@@ -1175,7 +1191,7 @@ export function getAllTeamMembers(): TeamMember[] {
       {
         id: "tm_admin_sohan",
         name: "Sohan Sahu",
-        email: "sohansahustudy@gmail.com",
+        email: "playbookstudio76@gmail.com@gmail.com",
         role: "admin",
         permissions: ["products", "orders", "coupons", "banners", "team", "wallet"],
         createdAt: new Date().toISOString()
