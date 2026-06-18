@@ -8,7 +8,7 @@ import ProductDetailView from './components/ProductDetailView';
 import CartDrawer from './components/CartDrawer';
 import CustomerDashboard from './components/CustomerDashboard';
 import AdminDashboard from './components/AdminDashboard';
-import { UserProfile, Product, Order, CartItem, Category } from './types';
+import { UserProfile, Product, Order, CartItem, Category, AnnouncementBar, FloatingBanner, SocialConfig } from './types';
 import { 
   getCurrentUser, 
   logoutUser, 
@@ -25,7 +25,10 @@ import {
   deleteProduct, 
   addCategory,
   getWhatsAppCheckoutUrl,
-  startFirebaseSync
+  startFirebaseSync,
+  getAllAnnouncements,
+  getAllBanners,
+  getSocialConfig
 } from './storage';
 
 export default function App() {
@@ -39,6 +42,9 @@ export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [announcements, setAnnouncements] = useState<AnnouncementBar[]>([]);
+  const [banners, setBanners] = useState<FloatingBanner[]>([]);
+  const [socialConfig, setSocialConfig] = useState<SocialConfig | null>(null);
   
   // Cart state
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -54,6 +60,9 @@ export default function App() {
     setOrders(getAllOrders());
     setUsers(getAllUsers());
     setCategories(getAllCategories());
+    setAnnouncements(getAllAnnouncements());
+    setBanners(getAllBanners());
+    setSocialConfig(getSocialConfig());
 
     // Connect to real-time remote Firebase tables
     const unsubSync = startFirebaseSync(() => {
@@ -61,12 +70,16 @@ export default function App() {
       setOrders(getAllOrders());
       setUsers(getAllUsers());
       setCategories(getAllCategories());
+      setAnnouncements(getAllAnnouncements());
+      setBanners(getAllBanners());
+      setSocialConfig(getSocialConfig());
     });
 
     // Resolve Hash-based or basic path navigation for dynamic iframe refresh resilience
     const handleHashChange = () => {
       const hash = window.location.hash || '#home';
       const cleanHash = hash.replace('#', '');
+      const activeUser = getCurrentUser();
       
       if (cleanHash === 'home') {
         setCurrentView('home');
@@ -79,9 +92,9 @@ export default function App() {
           setViewParams({ id: prodId });
         }
       } else if (cleanHash === 'dashboard') {
-        setCurrentView(user ? 'dashboard' : 'auth');
+        setCurrentView(activeUser ? 'dashboard' : 'auth');
       } else if (cleanHash === 'admin') {
-        setCurrentView(user?.role === 'admin' ? 'admin' : 'auth');
+        setCurrentView(activeUser?.role === 'admin' ? 'admin' : 'auth');
       }
     };
 
@@ -359,6 +372,17 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background text-on-background flex flex-col font-sans select-none antialiased">
       
+      {/* GLOBAL ANNOUNCEMENT BARS (Admin-managed) */}
+      {announcements.filter(a => a.isActive).map(ann => (
+        <div 
+          key={ann.id}
+          style={{ backgroundColor: ann.backgroundColor, color: ann.textColor }}
+          className="w-full text-center py-2 px-4 text-[10px] md:text-xs font-mono font-bold uppercase tracking-widest transition-all z-50 relative border-b border-white/5"
+        >
+          {ann.text}
+        </div>
+      ))}
+
       {/* 1. BRAND GLOBAL HEADER */}
       <Header
         currentUser={currentUser}
@@ -370,12 +394,13 @@ export default function App() {
       />
 
       {/* 2. DYNAMIC CONTENT MAIN ROUTER CANVAS */}
-      <main className="flex-grow flex flex-col animate-fade-in">
+      <main className="flex-grow flex flex-col animate-fade-in relative">
         
         {currentView === 'home' && (
           <HomeView 
             products={products} 
             onNavigate={handleNavigate} 
+            socialConfig={socialConfig}
           />
         )}
 
@@ -439,6 +464,60 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* FLOATING BANNERS (Admin-managed) */}
+      {banners.filter(b => b.isActive && !window.sessionStorage.getItem(`dismiss_banner_${b.id}`)).map(ban => {
+        // Map positions to tailwind coordinates
+        let posClass = "bottom-6 right-6";
+        if (ban.position === "bottom-left") posClass = "bottom-6 left-6";
+        else if (ban.position === "top-right") posClass = "top-24 right-6";
+        else if (ban.position === "top-left") posClass = "top-24 left-6";
+
+        return (
+          <div 
+            key={ban.id}
+            className={`fixed ${posClass} z-50 max-w-sm bg-white border border-outline-variant p-6 shadow-xl flex flex-col space-y-3 transition-all duration-300 transform scale-100`}
+          >
+            <div className="flex justify-between items-start">
+              <span className="font-mono text-[9px] bg-zinc-100 text-primary px-2.5 py-0.5 uppercase tracking-widest font-semibold">
+                ALERT
+              </span>
+              <button 
+                onClick={() => {
+                  window.sessionStorage.setItem(`dismiss_banner_${ban.id}`, 'true');
+                  // Trigger a rerender of banners state to hide dismissed ones
+                  setBanners(prev => prev.filter(b => b.id !== ban.id));
+                }}
+                className="text-secondary hover:text-primary transition text-xs font-bold font-mono tracking-wider uppercase ml-4"
+              >
+                ✕ CLOSE
+              </button>
+            </div>
+            
+            <h4 className="font-display-lg text-sm font-bold text-primary uppercase tracking-tight">
+              {ban.title}
+            </h4>
+            <p className="font-sans text-xs text-secondary leading-relaxed">
+              {ban.text}
+            </p>
+            
+            {ban.linkUrl && ban.linkUrl !== '#' && (
+              <a 
+                href={ban.linkUrl} 
+                onClick={(e) => {
+                  if (ban.linkUrl?.startsWith('#')) {
+                    e.preventDefault();
+                    handleNavigate(ban.linkUrl.replace('#', ''));
+                  }
+                }}
+                className="inline-block text-center bg-primary text-on-primary font-button-text text-[10px] uppercase tracking-widest py-2.5 px-4 hover:bg-opacity-90 transition font-bold"
+              >
+                {ban.linkUrl.startsWith('#') ? `EXPLORE` : `OPEN LINK`}
+              </a>
+            )}
+          </div>
+        );
+      })}
 
       {/* 4. PERSISTENT BAG CHASSIS DRAWER OVERLAY */}
       <CartDrawer

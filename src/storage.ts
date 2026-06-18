@@ -872,18 +872,16 @@ export function getWhatsAppCheckoutUrl(order: Order): string {
 export function getAllAnnouncements(): AnnouncementBar[] {
   const data = localStorage.getItem(KEYS.ANNOUNCEMENTS);
   if (!data) {
-    const defaults: AnnouncementBar[] = [{
-      id: "ann_default",
-      text: "⚡ HARVEST PREMIUM STREETWEAR: FREE ₹300 SIGNUP BONUS INSTANTLY LOADED TO YOUR WALLET! ⚡",
-      isActive: true,
-      backgroundColor: "#1D4ED8",
-      textColor: "#FFFFFF",
-      createdAt: new Date().toISOString()
-    }];
+    const defaults: AnnouncementBar[] = [];
     localStorage.setItem(KEYS.ANNOUNCEMENTS, JSON.stringify(defaults));
     return defaults;
   }
-  return JSON.parse(data);
+  let parsed = JSON.parse(data);
+  if (Array.isArray(parsed)) {
+    // Proactively clear the old mock announcement if present
+    parsed = parsed.filter(b => b.id !== 'ann_default');
+  }
+  return parsed;
 }
 
 export async function saveAnnouncement(bar: AnnouncementBar): Promise<void> {
@@ -917,19 +915,16 @@ export async function deleteAnnouncement(id: string): Promise<void> {
 export function getAllBanners(): FloatingBanner[] {
   const data = localStorage.getItem(KEYS.BANNERS);
   if (!data) {
-    const defaults: FloatingBanner[] = [{
-      id: "ban_default",
-      title: "EXCLUSIVE DROP ENROLLMENT",
-      text: "Register now and get our winter collection alerts and an immediate ₹300 in your store wallet!",
-      linkUrl: "#",
-      isActive: true,
-      position: "bottom-right",
-      createdAt: new Date().toISOString()
-    }];
+    const defaults: FloatingBanner[] = [];
     localStorage.setItem(KEYS.BANNERS, JSON.stringify(defaults));
     return defaults;
   }
-  return JSON.parse(data);
+  let parsed = JSON.parse(data);
+  if (Array.isArray(parsed)) {
+    // Proactively clear the old mock banner if present
+    parsed = parsed.filter(b => b.id !== 'ban_default');
+  }
+  return parsed;
 }
 
 export async function saveBanner(banner: FloatingBanner): Promise<void> {
@@ -965,16 +960,28 @@ export function getSocialConfig(): SocialConfig {
   if (!data) {
     const defaultConfig: SocialConfig = {
       id: 'social_links',
-      instagram: 'https://instagram.com/playbookstudios',
-      twitter: 'https://twitter.com/playbookstudios',
-      youtube: 'https://youtube.com/playbookstudios',
+      instagram: '',
+      twitter: '',
+      youtube: '',
       facebook: '',
-      pinterest: ''
+      pinterest: '',
+      instagramImages: []
     };
     localStorage.setItem(KEYS.SOCIAL_LINKS, JSON.stringify(defaultConfig));
     return defaultConfig;
   }
-  return JSON.parse(data);
+  const parsed = JSON.parse(data);
+  // Clear preset mock lookbook links or images if they match old playbook template defaults
+  if (parsed.instagram === 'https://instagram.com/playbookstudios' || parsed.instagramImages?.some((img: string) => img.includes('photo-1515886657613'))) {
+    parsed.instagram = '';
+    parsed.twitter = '';
+    parsed.youtube = '';
+    parsed.facebook = '';
+    parsed.pinterest = '';
+    parsed.instagramImages = [];
+    localStorage.setItem(KEYS.SOCIAL_LINKS, JSON.stringify(parsed));
+  }
+  return parsed;
 }
 
 export async function saveSocialConfig(config: SocialConfig): Promise<void> {
@@ -993,14 +1000,21 @@ export function getWhatsAppConfig(): WhatsAppConfig {
   if (!data) {
     const defaultConfig: WhatsAppConfig = {
       id: 'whatsapp_config',
-      phoneNumber: '919861239776',
-      isEnabled: true,
-      prefilledMessageText: "Hey Playbook! I am interested in ordering: "
+      phoneNumber: '',
+      isEnabled: false,
+      prefilledMessageText: "Hey! I am interested in ordering: "
     };
     localStorage.setItem(KEYS.WHATSAPP_CONFIG, JSON.stringify(defaultConfig));
     return defaultConfig;
   }
-  return JSON.parse(data);
+  const parsed = JSON.parse(data);
+  // Reset the old pre-filled default Indian mock phone number if still present
+  if (parsed.phoneNumber === '919861239776') {
+    parsed.phoneNumber = '';
+    parsed.isEnabled = false;
+    localStorage.setItem(KEYS.WHATSAPP_CONFIG, JSON.stringify(parsed));
+  }
+  return parsed;
 }
 
 export async function saveWhatsAppConfig(config: WhatsAppConfig): Promise<void> {

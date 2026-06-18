@@ -254,6 +254,7 @@ export default function AdminDashboard({
   const [scYoutube, setScYoutube] = useState(socialConfig.youtube || '');
   const [scFB, setScFB] = useState(socialConfig.facebook || '');
   const [scPin, setScPin] = useState(socialConfig.pinterest || '');
+  const [scInstaImages, setScInstaImages] = useState<string[]>(() => socialConfig.instagramImages || []);
 
   // 4. WhatsApp support config
   const [waConfig, setWaConfig] = useState<WhatsAppConfig>(() => getWhatsAppConfig());
@@ -1801,19 +1802,67 @@ The Playbook Studios Atelier Team`);
               </div>
             </div>
 
+            {/* Instagram Images Grid urls */}
+            <div className="border-t border-outline-variant pt-6 space-y-4">
+              <h3 className="font-label-caps text-xs font-bold uppercase tracking-wider text-primary border-b border-outline-variant pb-2">
+                Instagram Banner Grid Images (6 Elements)
+              </h3>
+              <p className="font-sans text-[11px] text-secondary leading-relaxed">
+                Supply absolute Image URLs from the web (Unsplash recommended) to showcase selected high-contrast looks on the storefront.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[0, 1, 2, 3, 4, 5].map((idx) => (
+                  <div key={idx} className="space-y-1 font-mono text-xs">
+                    <label className="text-secondary text-[10px] uppercase block font-bold">Grid Photo #{idx + 1}</label>
+                    <input
+                      type="text"
+                      placeholder="https://images.unsplash.com/photo-..."
+                      value={scInstaImages[idx] || ''}
+                      onChange={(e) => {
+                        const copy = [...scInstaImages];
+                        copy[idx] = e.target.value.trim();
+                        setScInstaImages(copy);
+                      }}
+                      className="bg-white border border-outline-variant p-2 w-full focus:outline-none"
+                    />
+                    {scInstaImages[idx] && (
+                      <div className="mt-1 w-16 h-16 border border-outline-variant bg-zinc-100 overflow-hidden">
+                        <img 
+                          src={scInstaImages[idx]} 
+                          alt={`Preview #${idx + 1}`} 
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://placehold.co/150?text=Error';
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <button
                onClick={async () => {
+                 // Ensure we have 6 elements or fallback to empty string
+                 const finalImages = [...scInstaImages];
+                 while (finalImages.length < 6) {
+                   finalImages.push('');
+                 }
                  const updated: SocialConfig = {
                    id: 'social_links',
                    instagram: scInsta.trim(),
                    twitter: scTwitter.trim(),
                    youtube: scYoutube.trim(),
                    facebook: scFB.trim(),
-                   pinterest: scPin.trim()
+                   pinterest: scPin.trim(),
+                   instagramImages: finalImages
                  };
                  await saveSocialConfig(updated);
                  setSocialConfig(getSocialConfig());
-                 alert("Social directories configured and synchronized live!");
+                 alert("Social directories and lookbook media sync updated successfully!");
                }}
                className="w-full bg-primary text-on-primary text-xs uppercase py-3 font-semibold tracking-widest hover:bg-opacity-95 transition"
             >

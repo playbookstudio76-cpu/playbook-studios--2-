@@ -1,12 +1,13 @@
-import { ArrowRight } from 'lucide-react';
-import { Product } from '../types';
+import { ArrowRight, Instagram } from 'lucide-react';
+import { Product, SocialConfig } from '../types';
 
 interface HomeViewProps {
   products: Product[];
   onNavigate: (view: string, props?: any) => void;
+  socialConfig?: SocialConfig | null;
 }
 
-export default function HomeView({ products, onNavigate }: HomeViewProps) {
+export default function HomeView({ products, onNavigate, socialConfig }: HomeViewProps) {
   const sampleProductIds = ['pb-001', 'pb-002', 'pb-003', 'pb-004', 'pb-005', 'pb-006', 'pb-007', 'pb-008', 'pb-009', 'pb-010'];
   // Filter out any default sample/preset products so that we only showcase newly added ones
   const userProducts = products.filter(p => !sampleProductIds.includes(p.id));
@@ -266,6 +267,84 @@ export default function HomeView({ products, onNavigate }: HomeViewProps) {
           })}
         </div>
       </section>
+
+      {/* 5B. THE PLAYBOOK ATELIER LIVE FEED / INSTAGRAM PORTAL */}
+      {(() => {
+        const activeImages = (socialConfig?.instagramImages || []).filter(img => img && img.trim() !== '');
+        const hasInsta = socialConfig?.instagram && socialConfig.instagram.trim() !== '';
+        
+        if (!hasInsta && activeImages.length === 0) {
+          return null;
+        }
+
+        const getInstaHandle = () => {
+          if (!hasInsta) return 'STUDIO';
+          try {
+            const cleanUrl = socialConfig.instagram!.trim();
+            const url = new URL(cleanUrl.startsWith('http') ? cleanUrl : `https://${cleanUrl}`);
+            const pathName = url.pathname.replace(/\//g, '');
+            return pathName ? `@${pathName.toUpperCase()}` : 'STUDIO';
+          } catch {
+            return 'STUDIO';
+          }
+        };
+
+        return (
+          <section className="pb-[100px] border-t border-outline-variant pt-[80px] max-w-[1440px] mx-auto px-4 md:px-[64px]">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 space-y-4 md:space-y-0">
+              <div>
+                <span className="font-label-caps text-[10px] tracking-[0.25em] text-secondary uppercase block mb-1">
+                  STUDIO PORTAL
+                </span>
+                <h3 className="font-display-lg text-2xl md:text-3xl tracking-tight text-primary uppercase font-light">
+                  GALLERY SEEDING // {getInstaHandle()}
+                </h3>
+              </div>
+              {hasInsta && (
+                <a 
+                  href={socialConfig.instagram!.trim().startsWith('http') ? socialConfig.instagram!.trim() : `https://${socialConfig.instagram!.trim()}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center space-x-2 border border-outline-variant px-5 py-2.5 text-xs font-mono tracking-widest uppercase hover:bg-primary hover:text-on-primary transition duration-300"
+                >
+                  <Instagram className="w-4 h-4" />
+                  <span>FOLLOW INSTAGRAM</span>
+                </a>
+              )}
+            </div>
+
+            {/* Grid items */}
+            {activeImages.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {activeImages.slice(0, 6).map((imgUrl, idx) => (
+                  <a
+                    key={idx}
+                    href={hasInsta ? (socialConfig.instagram!.trim().startsWith('http') ? socialConfig.instagram!.trim() : `https://${socialConfig.instagram!.trim()}`) : '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative aspect-[1/1] block overflow-hidden bg-zinc-200 border border-outline-variant"
+                  >
+                    <img
+                      src={imgUrl}
+                      alt={`Studio look ${idx + 1}`}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+                    />
+                    <div className="absolute inset-0 bg-primary/45 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-on-primary">
+                      <Instagram className="w-6 h-6 mb-1 text-white" />
+                      <span className="font-label-caps text-[9px] tracking-widest uppercase font-bold text-white">VIEW LOOK</span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 border border-dashed border-outline-variant text-secondary font-mono text-xs">
+                LOOKBOOK ALBUM EMPTY // SEED HIGH-CONTRAST LOOK PHOTOS VIA ADMIN PANEL
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       {/* 6. EDITORIAL NEWSLETTER SIGNUP */}
       <section className="bg-surface-container-low border-t border-b border-outline-variant py-[100px]">

@@ -127,6 +127,7 @@ export interface SocialConfig {
   youtube?: string;
   facebook?: string;
   pinterest?: string;
+  instagramImages?: string[];
 }
 
 export interface WhatsAppConfig {
