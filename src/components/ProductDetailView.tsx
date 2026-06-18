@@ -1,13 +1,15 @@
 import { useState, useMemo } from 'react';
 import { Minus, Plus, ChevronDown, ChevronUp, RefreshCw, CreditCard, ShoppingBag } from 'lucide-react';
-import { Product, CartItem } from '../types';
+import { Product, CartItem, UserProfile } from '../types';
 
 interface ProductDetailViewProps {
   product: Product;
   relatedProducts: Product[];
   onAddToCart: (item: Omit<CartItem, 'id' | 'quantity'>, quantity: number) => void;
   onNavigate: (view: string, props?: any) => void;
-  onQuickCheckoutViaWhatsApp: (item: Omit<CartItem, 'id' | 'quantity'>, size: string, color: string, qty: number) => void;
+  onQuickCheckoutViaWhatsApp: (item: Omit<CartItem, 'id' | 'quantity'>, size: string, color: string, qty: number, deliveryAddress: string) => void;
+  currentUser: UserProfile | null;
+  showToast: (message: string, type: 'success' | 'info' | 'error') => void;
 }
 
 export default function ProductDetailView({
@@ -16,6 +18,8 @@ export default function ProductDetailView({
   onAddToCart,
   onNavigate,
   onQuickCheckoutViaWhatsApp,
+  currentUser,
+  showToast,
 }: ProductDetailViewProps) {
   // Gallery Active state
   const [activeImageIdx, setActiveImageIdx] = useState(0);
@@ -24,6 +28,14 @@ export default function ProductDetailView({
   const [selectedSize, setSelectedSize] = useState(product.sizes[0] || 'S');
   const [selectedColor, setSelectedColor] = useState(product.colors[0] || '#000000');
   const [quantity, setQuantity] = useState(1);
+
+  // Shipping Modal states for "Order via WhatsApp" direct flow
+  const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
+  const [street, setStreet] = useState('');
+  const [city, setCity] = useState('');
+  const [stateField, setStateField] = useState('');
+  const [pincode, setPincode] = useState('');
+  const [shippingErr, setShippingErr] = useState('');
 
   // Accordions Active state
   const [openSection, setOpenSection] = useState<string | null>('details');
@@ -43,7 +55,7 @@ export default function ProductDetailView({
       if (quantity < product.stock) {
         setQuantity(q => q + 1);
       } else {
-        alert(`Only ${product.stock} items remaining in our studio inventory.`);
+        showToast(`Only ${product.stock} items remaining in our studio inventory.`, 'info');
       }
     } else {
       setQuantity(q => Math.max(1, q - 1));
@@ -52,7 +64,7 @@ export default function ProductDetailView({
 
   const handleAdd = () => {
     if (product.stock === 0) {
-      alert('This element is currently out of stock.');
+      showToast('This element is currently out of stock.', 'error');
       return;
     }
     onAddToCart(
@@ -71,30 +83,37 @@ export default function ProductDetailView({
 
   const handleBuyNow = () => {
     if (product.stock === 0) {
-      alert('This element is currently out of stock.');
+      showToast('This element is currently out of stock.', 'error');
       return;
     }
     // Add to cart first, then trigger cart slide open or navigation directly to user profile checkout
     handleAdd();
-    alert('Buy Now activated! Opening checkout drawer.');
-    // will auto open custom drawer or checkout
+    showToast('Garment staged in Bag. Proceed with delivery formulation below.', 'success');
   };
 
   const handleWhatsAppOrder = () => {
-    onQuickCheckoutViaWhatsApp(
-      {
-        productId: product.id,
-        name: product.name,
-        price: product.discountPrice || product.price,
-        image: galleryImages[0],
-        size: selectedSize,
-        color: selectedColorHexName(selectedColor),
-        stock: product.stock,
-      },
-      selectedSize,
-      selectedColorHexName(selectedColor),
-      quantity
-    );
+    if (!currentUser) {
+      showToast('Please create or login to your customer account to authorize WhatsApp checkouts.', 'info');
+      onNavigate('auth');
+      return;
+    }
+    
+    // Prefill form if user has default addresses saved
+    const defaultAddress = currentUser.addresses?.find(a => a.isDefault);
+    if (defaultAddress) {
+      setStreet(defaultAddress.street || '');
+      setCity(defaultAddress.city || '');
+      setStateField(defaultAddress.state || '');
+      setPincode(defaultAddress.zip || '');
+    } else {
+      setStreet('');
+      setCity('');
+      setStateField('');
+      setPincode('');
+    }
+    
+    setShippingErr('');
+    setIsShippingModalOpen(true);
   };
 
   // Convert Color color Hex to descriptive string
@@ -413,6 +432,133 @@ export default function ProductDetailView({
             ))}
           </div>
         </section>
+      )}
+
+      {/* SHAPE SHIPPING / DELIVERY ADDRESS STRUCTURAL FORM MODAL */}
+      {isShippingModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/65 backdrop-blur-[2.5px] pointer-events-auto">
+          <div 
+            className="bg-white border border-outline-variant w-full max-w-md p-6 relative flex flex-col space-y-4 animate-fade-in shadow-[0_20px_50px_rgba(0,0,0,0.3)] transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center border-b border-outline-variant pb-3.5">
+              <h3 className="font-display-lg text-xs font-bold text-primary uppercase tracking-widest">
+                Delivery Coordinates
+              </h3>
+              <button
+                onClick={() => setIsShippingModalOpen(false)}
+                className="text-secondary hover:text-primary transition font-bold font-mono text-[10px] uppercase tracking-wider ml-4"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <p className="text-[9px] font-mono text-secondary uppercase leading-relaxed">
+              Design and supply your authentic delivery destination prior to compiling the WhatsApp payment dispatch template.
+            </p>
+
+            {shippingErr && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-800 p-2.5 text-[10px] font-mono uppercase">
+                ⚠️ {shippingErr}
+              </div>
+            )}
+
+            <div className="space-y-3.5">
+              {/* Street Address */}
+              <div>
+                <label className="text-[9px] font-label-caps tracking-widest text-secondary block uppercase mb-1 font-semibold">
+                  Street Address / House No. / Landmark *
+                </label>
+                <input
+                  type="text"
+                  value={street}
+                  onChange={(e) => { setStreet(e.target.value); setShippingErr(''); }}
+                  placeholder="e.g. 502, Crescent Heights, Sector 15"
+                  className="w-full text-xs font-mono p-2.5 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* City */}
+                <div>
+                  <label className="text-[9px] font-label-caps tracking-widest text-secondary block uppercase mb-1 font-semibold">
+                    Town / City *
+                  </label>
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => { setCity(e.target.value); setShippingErr(''); }}
+                    placeholder="e.g. Gurugram"
+                    className="w-full text-xs font-mono p-2.5 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none"
+                  />
+                </div>
+
+                {/* State */}
+                <div>
+                  <label className="text-[9px] font-label-caps tracking-widest text-secondary block uppercase mb-1 font-semibold">
+                    State *
+                  </label>
+                  <input
+                    type="text"
+                    value={stateField}
+                    onChange={(e) => { setStateField(e.target.value); setShippingErr(''); }}
+                    placeholder="e.g. Haryana"
+                    className="w-full text-xs font-mono p-2.5 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none"
+                  />
+                </div>
+              </div>
+
+              {/* Pincode */}
+              <div>
+                <label className="text-[9px] font-label-caps tracking-widest text-secondary block uppercase mb-1 font-semibold">
+                  Pincode / ZIP Code *
+                </label>
+                <input
+                  type="text"
+                  value={pincode}
+                  onChange={(e) => { setPincode(e.target.value); setShippingErr(''); }}
+                  placeholder="e.g. 122002"
+                  className="w-full text-xs font-mono p-2.5 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                const s = street.trim();
+                const c = city.trim();
+                const st = stateField.trim();
+                const p = pincode.trim();
+                if (!s || !c || !st || !p) {
+                  setShippingErr("All coordinates parameters must be completed.");
+                  return;
+                }
+                setShippingErr("");
+                const fullAddressStr = `${s}, ${c}, ${st} - ${p}`;
+                setIsShippingModalOpen(false);
+
+                onQuickCheckoutViaWhatsApp(
+                  {
+                    productId: product.id,
+                    name: product.name,
+                    price: product.discountPrice || product.price,
+                    image: galleryImages[0],
+                    size: selectedSize,
+                    color: selectedColorHexName(selectedColor),
+                    stock: product.stock,
+                  },
+                  selectedSize,
+                  selectedColorHexName(selectedColor),
+                  quantity,
+                  fullAddressStr
+                );
+              }}
+              className="w-full bg-primary text-on-primary font-button-text text-xs tracking-widest py-3.5 hover:bg-opacity-95 transition-all text-center uppercase font-bold"
+            >
+              Confirm Coordinates & Open WhatsApp
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

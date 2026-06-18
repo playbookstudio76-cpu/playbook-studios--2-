@@ -21,19 +21,33 @@ export default function CartDrawer({
   onCheckout,
   currentUser,
 }: CartDrawerProps) {
-  const [address, setAddress] = useState('');
+  const [street, setStreet] = useState('');
+  const [city, setCity] = useState('');
+  const [stateField, setStateField] = useState('');
+  const [pincode, setPincode] = useState('');
+  const [validationErr, setValidationErr] = useState('');
 
   useEffect(() => {
     if (isOpen) {
+      setValidationErr('');
       if (currentUser) {
         const defaultAddress = currentUser.addresses?.find(a => a.isDefault);
         if (defaultAddress) {
-          setAddress(`${defaultAddress.street}, ${defaultAddress.city}, ${defaultAddress.state} ${defaultAddress.zip}, ${defaultAddress.country}`.trim());
+          setStreet(defaultAddress.street || '');
+          setCity(defaultAddress.city || '');
+          setStateField(defaultAddress.state || '');
+          setPincode(defaultAddress.zip || '');
         } else {
-          setAddress('');
+          setStreet('');
+          setCity('');
+          setStateField('');
+          setPincode('');
         }
       } else {
-        setAddress('');
+        setStreet('');
+        setCity('');
+        setStateField('');
+        setPincode('');
       }
     }
   }, [currentUser, isOpen]);
@@ -168,32 +182,71 @@ export default function CartDrawer({
               </div>
 
               {/* Delivery Address Form Block */}
-              <div className="space-y-1.5 pt-2 border-t border-dashed border-outline-variant">
+              <div className="space-y-2 pt-2 border-t border-dashed border-outline-variant">
                 <label className="text-[10px] font-label-caps tracking-widest text-secondary uppercase font-bold block">
                   Delivery Address (Required)
                 </label>
-                <textarea
-                  rows={2}
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="e.g. House No, Street name, Landmark, City, State, PIN code"
-                  className="w-full text-xs font-mono p-2 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none shadow-sm resize-none"
-                />
+                
+                {validationErr && (
+                  <p className="text-[9px] font-mono text-rose-600 bg-rose-50 border border-rose-100 px-2 py-1 uppercase">
+                    ⚠️ {validationErr}
+                  </p>
+                )}
+
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={street}
+                    onChange={(e) => { setStreet(e.target.value); setValidationErr(''); }}
+                    placeholder="Street address, building, apartment / flat no."
+                    className="w-full text-[11px] font-mono p-2 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none shadow-sm"
+                  />
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={city}
+                      onChange={(e) => { setCity(e.target.value); setValidationErr(''); }}
+                      placeholder="Town / City"
+                      className="w-full text-[11px] font-mono p-2 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none shadow-sm"
+                    />
+                    <input
+                      type="text"
+                      value={stateField}
+                      onChange={(e) => { setStateField(e.target.value); setValidationErr(''); }}
+                      placeholder="State"
+                      className="w-full text-[11px] font-mono p-2 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none shadow-sm"
+                    />
+                  </div>
+
+                  <input
+                    type="text"
+                    value={pincode}
+                    onChange={(e) => { setPincode(e.target.value); setValidationErr(''); }}
+                    placeholder="Pincode / ZIP Code"
+                    className="w-full text-[11px] font-mono p-2 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none shadow-sm"
+                  />
+                </div>
               </div>
 
               <div className="pt-1">
                 <button
                   onClick={() => {
-                    const trimmedAddr = address.trim();
                     if (!currentUser) {
+                      // Handled by App.tsx (redirect to sign in)
                       onCheckout('');
                       return;
                     }
-                    if (!trimmedAddr) {
-                      alert('Please specify your Delivery Address before proceeding with checkout.');
+                    const s = street.trim();
+                    const c = city.trim();
+                    const st = stateField.trim();
+                    const p = pincode.trim();
+                    if (!s || !c || !st || !p) {
+                      setValidationErr('Please fill in complete address details before checkout.');
                       return;
                     }
-                    onCheckout(trimmedAddr);
+                    setValidationErr('');
+                    onCheckout(`${s}, ${c}, ${st} - ${p}`);
                   }}
                   className="w-full bg-primary text-on-primary font-button-text font-semibold uppercase text-xs tracking-widest py-4 hover:bg-opacity-95 transition-all text-center flex items-center justify-center space-x-2"
                 >

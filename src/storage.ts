@@ -82,7 +82,7 @@ export function cleanFirestoreData<T extends any>(val: T): T {
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   const clean = email.trim().toLowerCase();
-  return clean === 'playbookstudio76@gmail.com' || clean === 'playbookstudio76@gmail.com@gmail.com';
+  return clean === 'playbookstudio76@gmail.com' || clean === 'sohansahustudy@gmail.com';
 }
 
 // Error handling types and enumerations as requested by the Firebase Skill constraints
@@ -1191,7 +1191,7 @@ export function getAllTeamMembers(): TeamMember[] {
       {
         id: "tm_admin_sohan",
         name: "Sohan Sahu",
-        email: "playbookstudio76@gmail.com@gmail.com",
+        email: "sohansahustudy@gmail.com",
         role: "admin",
         permissions: ["products", "orders", "coupons", "banners", "team", "wallet"],
         createdAt: new Date().toISOString()

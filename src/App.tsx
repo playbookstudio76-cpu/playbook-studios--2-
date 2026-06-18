@@ -38,6 +38,17 @@ export default function App() {
   const [currentView, setCurrentView] = useState<string>('home'); // home, shop, product, auth, dashboard, admin
   const [viewParams, setViewParams] = useState<Record<string, any>>({});
   
+  // Toast notifications state
+  const [toasts, setToasts] = useState<{ id: string; message: string; type: 'success' | 'info' | 'error' }[]>([]);
+
+  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'info') => {
+    const id = Math.random().toString(36).substr(2, 9);
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+  };
+  
   // Storage Lists
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -160,7 +171,7 @@ export default function App() {
     logoutUser();
     setCurrentUser(null);
     handleNavigate('home');
-    alert('Logged out securely from playbook session.');
+    showToast('Logged out securely from playbook session.', 'info');
   };
 
   // Bag Action 1: Add or increment items inside bag
@@ -176,9 +187,9 @@ export default function App() {
       
       if (proposedQty <= item.stock) {
         updated[existingIdx].quantity = proposedQty;
-        alert(`Incremented look in bag index. Total: ${proposedQty}`);
+        showToast(`Incremented look in bag index. Total: ${proposedQty}`, 'success');
       } else {
-        alert(`Sorry, you have exceeded the maximum available studio stock of ${item.stock} for this size/color.`);
+        showToast(`Sorry, you have exceeded the maximum available studio stock of ${item.stock} for this size/color.`, 'error');
         return;
       }
     } else {
@@ -187,7 +198,7 @@ export default function App() {
         id: compositeId,
         quantity,
       });
-      alert('Streetwear garment styled and added to bag.');
+      showToast('Streetwear garment styled and added to bag.', 'success');
     }
 
     updateCartStateAndPersist(updated);
@@ -201,7 +212,7 @@ export default function App() {
     if (!target) return;
 
     if (qty > target.stock) {
-      alert(`Limit reached: Maximum available studio stock is ${target.stock}.`);
+      showToast(`Limit reached: Maximum available studio stock is ${target.stock}.`, 'error');
       return;
     }
 
@@ -224,14 +235,14 @@ export default function App() {
   // Checkout process: Converts Cart into real Order record & triggers WhatsApp opens!
   const handleCheckoutSubmit = (deliveryAddress: string) => {
     if (!currentUser) {
-      alert('Sign-In Authentication is required to allocate dynamic order numbers.');
+      showToast('Sign-In Authentication is required to allocate dynamic order numbers.', 'error');
       handleNavigate('auth');
       setCartOpen(false);
       return;
     }
 
     if (cartItems.length === 0) {
-      alert('Your bag is currently empty.');
+      showToast('Your bag is currently empty.', 'info');
       return;
     }
 
@@ -263,7 +274,7 @@ export default function App() {
 
     // Navigate them directly to their Orders History board! (Screenshot 5 visual)
     handleNavigate('dashboard');
-    alert(`Order Created Successfully! Your unique code is ${newOrder.orderNumber}. Redirecting to confirm payment via WhatsApp...`);
+    showToast(`Order #${newOrder.orderNumber} created! Redirecting to confirm payment on WhatsApp...`, 'success');
 
     // Automatic trigger to launch WhatsApp desktop/mobile with parsed templates!
     const waUrl = getWhatsAppCheckoutUrl(newOrder);
@@ -275,25 +286,16 @@ export default function App() {
     itemData: Omit<CartItem, 'id' | 'quantity'>,
     size: string,
     color: string,
-    qty: number
+    qty: number,
+    deliveryAddress: string
   ) => {
     if (!currentUser) {
-      alert('Please create or login to your customer account to authorize WhatsApp checkouts.');
+      showToast('Please create or login to your customer account to authorize WhatsApp checkouts.', 'info');
       handleNavigate('auth');
       return;
     }
 
-    const defaultAddress = currentUser.addresses?.find(a => a.isDefault);
-    const completeAddressStr = defaultAddress 
-      ? `${defaultAddress.street}, ${defaultAddress.city}, ${defaultAddress.state} ${defaultAddress.zip}, ${defaultAddress.country}`
-      : '';
-
-    const promptAddress = window.prompt("Please specify your Delivery Address before checkout:", completeAddressStr);
-    if (promptAddress === null) {
-      // User cancelled checkout
-      return;
-    }
-    const finalAddressStr = promptAddress.trim() || completeAddressStr || "No verified address allocated.";
+    const finalAddressStr = deliveryAddress.trim() || "No verified address allocated.";
 
     const subtotal = itemData.price * qty;
     const shipping = 0;
@@ -431,6 +433,8 @@ export default function App() {
             onAddToCart={handleAddToCart}
             onNavigate={handleNavigate}
             onQuickCheckoutViaWhatsApp={handleInstantBuyNowWhatsApp}
+            currentUser={currentUser}
+            showToast={showToast}
           />
         ) : currentView === 'product' ? (
           <div className="flex-grow flex flex-col items-center justify-center p-20 text-center space-y-4">
@@ -545,6 +549,30 @@ export default function App() {
 
       {/* 5. BRAND GLOBAL FOOTER */}
       <Footer onNavigate={handleNavigate} />
+
+      {/* 6. CUSTOM PREMIUM FLOATING TOASTS NOTIFICATIONS */}
+      <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-2.5 pointer-events-none max-w-sm w-full">
+        {toasts.map(toast => {
+          let bgClass = "bg-zinc-900 border-zinc-700 text-white shadow-[0_8px_30px_rgb(0,0,0,0.36)]";
+          if (toast.type === 'success') bgClass = "bg-emerald-950 border-emerald-800 text-emerald-200 shadow-[0_8px_30px_rgba(16,185,129,0.15)]";
+          if (toast.type === 'error') bgClass = "bg-rose-950 border-rose-900 text-rose-200 shadow-[0_8px_30px_rgba(244,63,94,0.15)]";
+          return (
+            <div
+              key={toast.id}
+              className={`${bgClass} border p-4 flex items-start gap-3 pointer-events-auto transition-all duration-300 transform translate-y-0 opacity-100 font-mono text-[10px] uppercase tracking-widest font-semibold border-l-4`}
+              style={{ borderLeftColor: toast.type === 'success' ? '#10b981' : toast.type === 'error' ? '#f43f5e' : '#ffffff' }}
+            >
+              <span className="flex-grow leading-relaxed">{toast.message}</span>
+              <button
+                onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                className="hover:opacity-80 transition font-bold shrink-0 ml-1 text-xs"
+              >
+                ✕
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
