@@ -59,6 +59,10 @@ export interface Product {
   colors: string[];
   stock: number;
   images: string[];
+  colorImages?: Record<string, string>; // Maps hex color string to matching image URL
+  detailsSection?: string;
+  shippingSection?: string;
+  authenticitySection?: string;
   featured: boolean;
   colorName?: string; // e.g. "Black / Core"
   createdAt: string;
@@ -195,4 +199,20 @@ export interface UserWallet {
   id: string; // userId
   balance: number;
   transactions: WalletTransaction[];
+}
+
+export interface ShippingTier {
+  id: string;
+  minQty: number;
+  maxQty: number | null; // null means infinite / "and above"
+  price: number;
+}
+
+export interface DeliveryZone {
+  id: string;
+  name: string;
+  type: 'Local' | 'Regional' | 'Remote';
+  pincodePrefixes: string[]; // e.g. ["560", "600", "110"]
+  minDays: number;
+  maxDays: number;
 }

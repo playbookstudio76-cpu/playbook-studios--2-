@@ -15,7 +15,9 @@ import {
   UserWallet,
   WalletTransaction,
   StoreConfig,
-  WalletAndProfitSettings
+  WalletAndProfitSettings,
+  ShippingTier,
+  DeliveryZone
 } from './types';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from './mockData';
 import { db, auth } from './firebase';
@@ -56,6 +58,8 @@ const KEYS = {
   WHATSAPP_CONFIG: 'pb_whatsapp_config_db',
   STORE_CONFIG: 'pb_store_config_db',
   WALLET_SETTINGS: 'pb_wallet_settings_db',
+  SHIPPING_TIERS: 'pb_shipping_tiers_db',
+  DELIVERY_ZONES: 'pb_delivery_zones_db',
 };
 
 export function cleanFirestoreData<T extends any>(val: T): T {
@@ -197,6 +201,24 @@ export function initLocalStorageDB() {
     ];
     localStorage.setItem(KEYS.USERS, JSON.stringify(defaultUsersList));
   }
+
+  if (!localStorage.getItem(KEYS.SHIPPING_TIERS)) {
+    const defaultShippingTiers = [
+      { id: 'tier_1', minQty: 1, maxQty: 1, price: 79 },
+      { id: 'tier_2', minQty: 2, maxQty: 2, price: 86 },
+      { id: 'tier_3', minQty: 3, maxQty: null, price: 105 }
+    ];
+    localStorage.setItem(KEYS.SHIPPING_TIERS, JSON.stringify(defaultShippingTiers));
+  }
+
+  if (!localStorage.getItem(KEYS.DELIVERY_ZONES)) {
+    const defaultDeliveryZones = [
+      { id: 'zone_1', name: 'Default Local', type: 'Local', pincodePrefixes: ['560', '600'], minDays: 5, maxDays: 8 },
+      { id: 'zone_2', name: 'Default Regional', type: 'Regional', pincodePrefixes: ['110', '400'], minDays: 5, maxDays: 10 },
+      { id: 'zone_3', name: 'Default Remote', type: 'Remote', pincodePrefixes: ['700', '800'], minDays: 7, maxDays: 15 }
+    ];
+    localStorage.setItem(KEYS.DELIVERY_ZONES, JSON.stringify(defaultDeliveryZones));
+  }
 }
 
 // Ensure database is initialized
@@ -307,6 +329,10 @@ export function startFirebaseSync(onUpdate: () => void) {
           localStorage.setItem(KEYS.WHATSAPP_CONFIG, JSON.stringify({ id, ...data }));
         } else if (id === 'store_config') {
           localStorage.setItem(KEYS.STORE_CONFIG, JSON.stringify({ id, ...data }));
+        } else if (id === 'shipping_tiers') {
+          localStorage.setItem(KEYS.SHIPPING_TIERS, JSON.stringify(data.tiers || []));
+        } else if (id === 'delivery_zones') {
+          localStorage.setItem(KEYS.DELIVERY_ZONES, JSON.stringify(data.zones || []));
         }
       });
       onUpdate();
@@ -1461,4 +1487,47 @@ export async function saveWalletAndProfitSettings(settings: WalletAndProfitSetti
     handleFirestoreError(err, OperationType.WRITE, 'settings/wallet_profit_settings');
   }
 }
+
+// ---------------- SHIPPING & DELIVERY ZONES CONFIGURATION SERVICES ----------------
+
+export function getShippingTiers(): ShippingTier[] {
+  const data = localStorage.getItem(KEYS.SHIPPING_TIERS);
+  if (!data) return [];
+  try {
+    return JSON.parse(data);
+  } catch (e) {
+    console.error(e);
+    return [];
+  }
+}
+
+export async function saveShippingTiers(tiers: ShippingTier[]): Promise<void> {
+  localStorage.setItem(KEYS.SHIPPING_TIERS, JSON.stringify(tiers));
+  try {
+    await setDoc(doc(db, 'settings', 'shipping_tiers'), { tiers: cleanFirestoreData(tiers) });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'settings/shipping_tiers');
+  }
+}
+
+export function getDeliveryZones(): DeliveryZone[] {
+  const data = localStorage.getItem(KEYS.DELIVERY_ZONES);
+  if (!data) return [];
+  try {
+    return JSON.parse(data);
+  } catch (e) {
+    console.error(e);
+    return [];
+  }
+}
+
+export async function saveDeliveryZones(zones: DeliveryZone[]): Promise<void> {
+  localStorage.setItem(KEYS.DELIVERY_ZONES, JSON.stringify(zones));
+  try {
+    await setDoc(doc(db, 'settings', 'delivery_zones'), { zones: cleanFirestoreData(zones) });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'settings/delivery_zones');
+  }
+}
+
 

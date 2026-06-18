@@ -29,7 +29,7 @@ import {
   Lock,
   ThumbsUp
 } from 'lucide-react';
-import { Product, Order, UserProfile, Category, Coupon, FloatingBanner, AnnouncementBar, SocialConfig, WhatsAppConfig, TeamMember, NewsletterEmail, UserWallet, StoreConfig, WalletAndProfitSettings } from '../types';
+import { Product, Order, UserProfile, Category, Coupon, FloatingBanner, AnnouncementBar, SocialConfig, WhatsAppConfig, TeamMember, NewsletterEmail, UserWallet, StoreConfig, WalletAndProfitSettings, ShippingTier, DeliveryZone } from '../types';
 import { 
   getCurrentUser,
   getAllAnnouncements, saveAnnouncement, deleteAnnouncement,
@@ -41,7 +41,9 @@ import {
   getAllNewsletterEmails, deleteNewsletterEmail, addNewsletterEmail,
   getAllWallets, saveWalletRaw, updateUserWallet, getUserWallet,
   getStoreConfig, saveStoreConfig,
-  getWalletAndProfitSettings, saveWalletAndProfitSettings
+  getWalletAndProfitSettings, saveWalletAndProfitSettings,
+  getShippingTiers, saveShippingTiers,
+  getDeliveryZones, saveDeliveryZones
 } from '../storage';
 
 interface AdminDashboardProps {
@@ -84,6 +86,8 @@ export default function AdminDashboard({
     | 'team_members'
     | 'wallets'
     | 'store_config'
+    | 'shipping'
+    | 'delivery'
   >('metrics');
 
   // Product modal / forms trigger
@@ -102,13 +106,19 @@ export default function AdminDashboard({
   const [layoutAuthUrl, setLayoutAuthUrl] = useState('');
   const [isSavingLayout, setIsSavingLayout] = useState(false);
 
-  // Load Layout Configuration setting
+  // Shipping Tiers and Delivery Zones State
+  const [shippingTiers, setShippingTiers] = useState<ShippingTier[]>([]);
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
+
+  // Load Layout, Shipping Tiers and Delivery Zones Configuration settings
   useEffect(() => {
     const config = getStoreConfig();
     if (config) {
       setLayoutHeroUrl(config.heroImageUrl || '');
       setLayoutAuthUrl(config.authImageUrl || '');
     }
+    setShippingTiers(getShippingTiers());
+    setDeliveryZones(getDeliveryZones());
   }, []);
 
   // Form Field parameters for product creation / editing
@@ -125,6 +135,11 @@ export default function AdminDashboard({
   const [formColors, setFormColors] = useState<string[]>(['#000000', '#FFFFFF']);
   const [formProductCode, setFormProductCode] = useState('');
   const [customColorPickerVal, setCustomColorPickerVal] = useState('#0B0B0A');
+
+  const [formColorImages, setFormColorImages] = useState<Record<string, string>>({});
+  const [formDetailsSection, setFormDetailsSection] = useState('');
+  const [formShippingSection, setFormShippingSection] = useState('');
+  const [formAuthenticitySection, setFormAuthenticitySection] = useState('');
   
   // Cloudinary Direct Uploader states
   const [uploading, setUploading] = useState(false);
@@ -179,6 +194,42 @@ export default function AdminDashboard({
       );
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleColorImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, colorHex: string) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    setIsSavingCloud(true);
+    try {
+      const file = files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', cloudinaryPreset);
+      formData.append('cloud_name', 'df4qsb2lr');
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/df4qsb2lr/image/upload`,
+        { method: 'POST', body: formData }
+      );
+
+      if (!response.ok) {
+        throw new Error('Upload failed.');
+      }
+
+      const data = await response.json();
+      if (data.secure_url) {
+        setFormColorImages(prev => ({
+          ...prev,
+          [colorHex]: data.secure_url
+        }));
+        alert(`🎉 Image successfully uploaded and mapped to Color ${colorHex}!`);
+      }
+    } catch (err: any) {
+      alert("Color image upload failure: " + (err.message || err));
+    } finally {
+      setIsSavingCloud(false);
     }
   };
 
@@ -371,6 +422,10 @@ The Playbook Studios Atelier Team`);
     setFormSizes(prod.sizes);
     setFormColors(prod.colors);
     setFormProductCode(prod.productCode || '');
+    setFormColorImages(prod.colorImages || {});
+    setFormDetailsSection(prod.detailsSection || '');
+    setFormShippingSection(prod.shippingSection || '');
+    setFormAuthenticitySection(prod.authenticitySection || '');
     setIsAddingProduct(true);
   };
 
@@ -389,6 +444,10 @@ The Playbook Studios Atelier Team`);
     setFormSizes(['S', 'M', 'L']);
     setFormColors(['#0A0A0A', '#EAEAEA']);
     setFormProductCode('');
+    setFormColorImages({});
+    setFormDetailsSection('');
+    setFormShippingSection('');
+    setFormAuthenticitySection('');
     setIsAddingProduct(true);
   };
 
@@ -419,6 +478,10 @@ The Playbook Studios Atelier Team`);
       sizes: formSizes,
       colors: formColors,
       productCode: formProductCode.trim().toUpperCase() || undefined,
+      colorImages: formColorImages,
+      detailsSection: formDetailsSection,
+      shippingSection: formShippingSection,
+      authenticitySection: formAuthenticitySection,
     };
 
     setIsSavingCloud(true);
@@ -662,7 +725,9 @@ The Playbook Studios Atelier Team`);
           { id: 'merch_mail', name: 'Merch Mail', icon: <Mail className="w-3.5 h-3.5" /> },
           { id: 'team_members', name: 'Team', icon: <Users className="w-3.5 h-3.5" /> },
           { id: 'wallets', name: 'Wallets', icon: <Coins className="w-3.5 h-3.5" /> },
-          { id: 'store_config', name: 'Layout Style', icon: <Sliders className="w-3.5 h-3.5" /> }
+          { id: 'store_config', name: 'Layout Style', icon: <Sliders className="w-3.5 h-3.5" /> },
+          { id: 'shipping', name: 'Shipping', icon: <Package className="w-3.5 h-3.5" /> },
+          { id: 'delivery', name: 'Delivery', icon: <PackageCheck className="w-3.5 h-3.5" /> }
         ].map(tb => (
           <button
             key={tb.id}
@@ -1136,6 +1201,119 @@ The Playbook Studios Atelier Team`);
                           + ADD
                         </button>
                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Color-Specific Matching Cloth Images */}
+                <div className="space-y-4 border border-outline-variant p-6 bg-zinc-50/50">
+                  <h4 className="font-display-sm text-sm font-bold uppercase tracking-wider text-primary border-b border-outline-variant pb-2 font-display">
+                    Color-Specific Apparel Photos
+                  </h4>
+                  <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-tight">
+                    Add a unique photo for each color selected above. Clicking the color circle on the user product page will render this matching garment image.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {formColors.map(hex => {
+                      const colorPresetName = AVAILABLE_COLORS.find(c => c.hex.toLowerCase() === hex.toLowerCase())?.name || 'Custom Shade';
+                      return (
+                        <div key={hex} className="border border-outline-variant p-3 bg-white space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="w-3.5 h-3.5 rounded-full border border-zinc-300" style={{ backgroundColor: hex }} />
+                            <span className="font-mono text-xs font-bold uppercase text-primary">{hex}</span>
+                            <span className="font-sans text-[10px] text-secondary font-medium">({colorPresetName})</span>
+                          </div>
+
+                          <div className="space-y-1">
+                            <input
+                              type="text"
+                              value={formColorImages[hex] || ''}
+                              onChange={(e) => {
+                                setFormColorImages(prev => ({
+                                  ...prev,
+                                  [hex]: e.target.value
+                                }));
+                              }}
+                              placeholder="Image URL (Optionally drop file below)"
+                              className="bg-zinc-50 border border-outline-variant p-2 w-full text-[10px] font-mono focus:outline-none focus:border-primary text-primary"
+                            />
+                            
+                            {/* Cloudinary direct loader field */}
+                            <div className="flex items-center space-x-2 pt-1 font-mono text-[9px]">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                id={`file-color-${hex}`}
+                                className="hidden"
+                                onChange={(e) => handleColorImageUpload(e, hex)}
+                              />
+                              <label
+                                htmlFor={`file-color-${hex}`}
+                                className="cursor-pointer bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-2 py-0.5 uppercase tracking-wider border border-outline-variant font-bold text-[8.5px]"
+                              >
+                                Upload Match Photo
+                              </label>
+                              {formColorImages[hex] && (
+                                <span className="text-emerald-700 font-bold uppercase">✔ Mapped</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {formColors.length === 0 && (
+                      <div className="col-span-2 text-center text-zinc-400 font-mono text-xs uppercase p-4">
+                        Please select or add product colors above to configure color-specific cloth photos.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Customizable Product Detail Sections */}
+                <div className="space-y-4 border border-outline-variant p-6 bg-zinc-50/50">
+                  <h4 className="font-display-sm text-sm font-bold uppercase tracking-wider text-primary border-b border-outline-variant pb-2 font-display">
+                    Customizable Product Information Accordions
+                  </h4>
+                  <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-tight">
+                    These allow you to write unique product specific information. If left blank, general global layout text will render.
+                  </p>
+
+                  <div className="space-y-4 font-sans text-xs">
+                    {/* DETAILS SECTION */}
+                    <div className="space-y-1.5">
+                      <label className="font-mono text-[9.5px] uppercase text-[#5d5f5f] block font-bold">Details & Care Instructions</label>
+                      <textarea
+                        value={formDetailsSection}
+                        onChange={(e) => setFormDetailsSection(e.target.value)}
+                        placeholder="Details, fabric info, weight, graphics specifications, fit rules..."
+                        rows={3}
+                        className="bg-white border border-outline-variant p-2.5 w-full text-xs focus:outline-none focus:border-primary text-primary"
+                      />
+                    </div>
+
+                    {/* SHIPPING SECTION */}
+                    <div className="space-y-1.5">
+                      <label className="font-mono text-[9.5px] uppercase text-[#5d5f5f] block font-bold">Custom Shipping & Returns Policy</label>
+                      <textarea
+                        value={formShippingSection}
+                        onChange={(e) => setFormShippingSection(e.target.value)}
+                        placeholder="Enter custom delivery rates, return guarantees, transit periods..."
+                        rows={3}
+                        className="bg-white border border-outline-variant p-2.5 w-full text-xs focus:outline-none focus:border-primary text-primary"
+                      />
+                    </div>
+
+                    {/* AUTHENTICITY SECTION */}
+                    <div className="space-y-1.5">
+                      <label className="font-mono text-[9.5px] uppercase text-[#5d5f5f] block font-bold">Custom Authenticity Clause</label>
+                      <textarea
+                        value={formAuthenticitySection}
+                        onChange={(e) => setFormAuthenticitySection(e.target.value)}
+                        placeholder="NFC authenticity labels, certification stamp info..."
+                        rows={2}
+                        className="bg-white border border-outline-variant p-2.5 w-full text-xs focus:outline-none focus:border-primary text-primary"
+                      />
                     </div>
                   </div>
                 </div>
@@ -3271,6 +3449,281 @@ The Playbook Studios Atelier Team`);
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* 11. QUANTITY-BASED SHIPPING TIERS */}
+      {activeAdminTab === 'shipping' && (
+        <div className="space-y-6 animate-fade-in font-sans">
+          <div className="border-b border-outline-variant pb-4">
+            <h1 className="font-display-lg text-2xl tracking-tight text-primary uppercase font-bold">SHIPPING TIERS</h1>
+            <p className="font-body-md text-xs text-secondary mt-1">Quantity-based shipping. Leave Max Qty blank for "and above".</p>
+          </div>
+
+          <div className="space-y-4 max-w-4xl">
+            {shippingTiers.map((tier, index) => (
+              <div key={tier.id || index} className="border border-outline-variant p-6 bg-zinc-50 flex flex-col md:flex-row md:items-end justify-between gap-4 relative">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-grow">
+                  {/* Min Quantity */}
+                  <div className="space-y-1.5">
+                    <label className="font-mono text-[9px] uppercase tracking-widest text-[#5d5f5f] block font-bold">MIN QTY</label>
+                    <input
+                      type="number"
+                      value={tier.minQty}
+                      onChange={(e) => {
+                        const updated = [...shippingTiers];
+                        updated[index].minQty = parseInt(e.target.value) || 0;
+                        setShippingTiers(updated);
+                      }}
+                      className="bg-white border border-outline-variant p-2.5 w-full text-xs font-mono focus:outline-none focus:border-primary text-primary"
+                    />
+                  </div>
+
+                  {/* Max Quantity */}
+                  <div className="space-y-1.5">
+                    <label className="font-mono text-[9px] uppercase tracking-widest text-[#5d5f5f] block font-bold">MAX QTY (BLANK = ∞)</label>
+                    <input
+                      type="text"
+                      value={tier.maxQty === null ? '' : tier.maxQty}
+                      placeholder="∞"
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        const updated = [...shippingTiers];
+                        updated[index].maxQty = val === '' ? null : parseInt(val) || 0;
+                        setShippingTiers(updated);
+                      }}
+                      className="bg-white border border-outline-variant p-2.5 w-full text-xs font-mono focus:outline-none focus:border-primary text-primary"
+                    />
+                  </div>
+
+                  {/* Price */}
+                  <div className="space-y-1.5">
+                    <label className="font-mono text-[9px] uppercase tracking-widest text-[#5d5f5f] block font-bold">PRICE (₹)</label>
+                    <input
+                      type="number"
+                      value={tier.price}
+                      onChange={(e) => {
+                        const updated = [...shippingTiers];
+                        updated[index].price = parseFloat(e.target.value) || 0;
+                        setShippingTiers(updated);
+                      }}
+                      className="bg-white border border-outline-variant p-2.5 w-full text-xs font-mono focus:outline-none focus:border-primary text-primary"
+                    />
+                  </div>
+                </div>
+
+                {/* Remove Tier Button */}
+                <button
+                  onClick={() => {
+                    const updated = shippingTiers.filter((_, idx) => idx !== index);
+                    setShippingTiers(updated);
+                  }}
+                  className="text-secondary hover:text-rose-600 transition p-2 border border-outline-variant hover:border-rose-200 bg-white leading-none h-[42px] flex items-center justify-center w-[42px]"
+                  title="Remove Tier"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+
+            {shippingTiers.length === 0 && (
+              <div className="border border-dashed border-outline-variant p-8 bg-zinc-50 text-center text-zinc-400 font-mono text-xs uppercase tracking-wider">
+                No shipping tiers configured. Click "+ Add Tier" to establish quantity range pricing.
+              </div>
+            )}
+
+            <div className="flex space-x-3 pt-2">
+              <button
+                onClick={() => {
+                  const maxMin = shippingTiers.length > 0 ? Math.max(...shippingTiers.map(t => t.minQty)) + 1 : 1;
+                  setShippingTiers([...shippingTiers, {
+                    id: 'tier_' + Math.random().toString(36).substr(2, 9),
+                    minQty: maxMin,
+                    maxQty: null,
+                    price: 0
+                  }]);
+                }}
+                className="border border-outline-variant text-primary px-5 py-3 text-[10px] font-label-caps uppercase tracking-widest rounded-none hover:bg-zinc-100 transition flex items-center space-x-1.5 font-bold font-mono"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Tier</span>
+              </button>
+
+              <button
+                onClick={async () => {
+                  setIsSavingCloud(true);
+                  try {
+                    await saveShippingTiers(shippingTiers);
+                    alert("🎉 Shipping tiers successfully updated and synced to cloud settings!");
+                  } catch (err: any) {
+                    alert("Error saving shipping tiers: " + err);
+                  } finally {
+                    setIsSavingCloud(false);
+                  }
+                }}
+                className="bg-amber-500 hover:bg-amber-600 text-black px-6 py-3.5 font-bold uppercase tracking-widest text-[10px] transition rounded-none font-mono"
+              >
+                Save Tiers
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 12. DELIVERY TIME BY PINCODE ZONES */}
+      {activeAdminTab === 'delivery' && (
+        <div className="space-y-6 animate-fade-in font-sans">
+          <div className="border-b border-outline-variant pb-4">
+            <h1 className="font-display-lg text-2xl tracking-tight text-primary uppercase font-bold">DELIVERY ZONES</h1>
+            <p className="font-body-md text-xs text-secondary mt-1">
+              Map pincode prefixes to delivery time zones. Use comma-separated prefixes (e.g. 560, 600, 110).
+            </p>
+          </div>
+
+          <div className="space-y-4 max-w-5xl">
+            {deliveryZones.map((zone, index) => (
+              <div key={zone.id || index} className="border border-outline-variant p-6 bg-zinc-50 flex flex-col md:flex-row md:items-end justify-between gap-4 relative">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 flex-grow browser-inputs">
+                  {/* Name */}
+                  <div className="space-y-1.5">
+                    <label className="font-mono text-[9px] uppercase tracking-widest text-[#5d5f5f] block font-bold">NAME</label>
+                    <input
+                      type="text"
+                      value={zone.name}
+                      onChange={(e) => {
+                        const updated = [...deliveryZones];
+                        updated[index].name = e.target.value;
+                        setDeliveryZones(updated);
+                      }}
+                      placeholder="e.g. Default Local"
+                      className="bg-white border border-outline-variant p-2 w-full text-xs font-mono focus:outline-none focus:border-primary text-primary"
+                    />
+                  </div>
+
+                  {/* Type */}
+                  <div className="space-y-1.5">
+                    <label className="font-mono text-[9px] uppercase tracking-widest text-[#5d5f5f] block font-bold">TYPE</label>
+                    <select
+                      value={zone.type}
+                      onChange={(e) => {
+                        const updated = [...deliveryZones];
+                        updated[index].type = e.target.value as any;
+                        setDeliveryZones(updated);
+                      }}
+                      className="bg-white border border-outline-variant p-2 w-full text-xs font-mono focus:outline-none focus:border-primary text-primary"
+                    >
+                      <option value="Local">Local</option>
+                      <option value="Regional">Regional</option>
+                      <option value="Remote">Remote</option>
+                    </select>
+                  </div>
+
+                  {/* Pincode Prefixes */}
+                  <div className="space-y-1.5">
+                    <label className="font-mono text-[9px] uppercase tracking-widest text-[#5d5f5f] block font-bold">PINCODE PREFIXES</label>
+                    <input
+                      type="text"
+                      value={zone.pincodePrefixes.join(', ')}
+                      onChange={(e) => {
+                        const updated = [...deliveryZones];
+                        updated[index].pincodePrefixes = e.target.value
+                          .split(',')
+                          .map(p => p.trim())
+                          .filter(p => p.length > 0);
+                        setDeliveryZones(updated);
+                      }}
+                      placeholder="e.g. 560, 600"
+                      className="bg-white border border-outline-variant p-2 w-full text-xs font-mono focus:outline-none focus:border-primary text-primary"
+                    />
+                  </div>
+
+                  {/* Min Days */}
+                  <div className="space-y-1.5">
+                    <label className="font-mono text-[9px] uppercase tracking-widest text-[#5d5f5f] block font-bold">MIN DAYS</label>
+                    <input
+                      type="number"
+                      value={zone.minDays}
+                      onChange={(e) => {
+                        const updated = [...deliveryZones];
+                        updated[index].minDays = parseInt(e.target.value) || 0;
+                        setDeliveryZones(updated);
+                      }}
+                      className="bg-white border border-outline-variant p-2 w-full text-xs font-mono focus:outline-none focus:border-primary text-primary"
+                    />
+                  </div>
+
+                  {/* Max Days */}
+                  <div className="space-y-1.5">
+                    <label className="font-mono text-[9px] uppercase tracking-widest text-[#5d5f5f] block font-bold">MAX DAYS</label>
+                    <input
+                      type="number"
+                      value={zone.maxDays}
+                      onChange={(e) => {
+                        const updated = [...deliveryZones];
+                        updated[index].maxDays = parseInt(e.target.value) || 0;
+                        setDeliveryZones(updated);
+                      }}
+                      className="bg-white border border-outline-variant p-2 w-full text-xs font-mono focus:outline-none focus:border-primary text-primary"
+                    />
+                  </div>
+                </div>
+
+                {/* Remove Zone Button */}
+                <button
+                  onClick={() => {
+                    const updated = deliveryZones.filter((_, idx) => idx !== index);
+                    setDeliveryZones(updated);
+                  }}
+                  className="text-secondary hover:text-rose-600 transition p-2 border border-outline-variant hover:border-rose-200 bg-white leading-none h-[38px] flex items-center justify-center w-[38px]"
+                  title="Remove Zone"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+
+            {deliveryZones.length === 0 && (
+              <div className="border border-dashed border-outline-variant p-8 bg-zinc-50 text-center text-zinc-400 font-mono text-xs uppercase tracking-wider">
+                No delivery zones configured. Click "+ Add Zone" to establish geographic timing rules.
+              </div>
+            )}
+
+            <div className="flex space-x-3 pt-2">
+              <button
+                onClick={() => {
+                  setDeliveryZones([...deliveryZones, {
+                    id: 'zone_' + Math.random().toString(36).substr(2, 9),
+                    name: 'New Area Zone',
+                    type: 'Local',
+                    pincodePrefixes: [],
+                    minDays: 3,
+                    maxDays: 7
+                  }]);
+                }}
+                className="border border-outline-variant text-primary px-5 py-3 text-[10px] font-label-caps uppercase tracking-widest rounded-none hover:bg-zinc-100 transition flex items-center space-x-1.5 font-bold font-mono"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Zone</span>
+              </button>
+
+              <button
+                onClick={async () => {
+                  setIsSavingCloud(true);
+                  try {
+                    await saveDeliveryZones(deliveryZones);
+                    alert("🎉 Delivery zones successfully updated and synced to cloud settings!");
+                  } catch (err: any) {
+                    alert("Error saving delivery zones: " + err);
+                  } finally {
+                    setIsSavingCloud(false);
+                  }
+                }}
+                className="bg-amber-500 hover:bg-amber-600 text-black px-6 py-3.5 font-bold uppercase tracking-widest text-[10px] transition rounded-none font-mono"
+              >
+                Save Zones
+              </button>
+            </div>
           </div>
         </div>
       )}

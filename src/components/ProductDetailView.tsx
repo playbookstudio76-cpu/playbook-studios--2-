@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Minus, Plus, ChevronDown, ChevronUp, RefreshCw, CreditCard, ShoppingBag } from 'lucide-react';
 import { Product, CartItem, UserProfile } from '../types';
 
@@ -29,8 +29,7 @@ export default function ProductDetailView({
   const [selectedColor, setSelectedColor] = useState(product.colors[0] || '#000000');
   const [quantity, setQuantity] = useState(1);
 
-  // Shipping Modal states for "Order via WhatsApp" direct flow
-  const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
+  // Shipping states for "Order via WhatsApp" inline direct flow
   const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
   const [stateField, setStateField] = useState('');
@@ -40,14 +39,103 @@ export default function ProductDetailView({
   // Accordions Active state
   const [openSection, setOpenSection] = useState<string | null>('details');
 
-  // Multi-image list setup
-  const galleryImages = useMemo(() => {
-    if (product.images && product.images.length > 0) {
-      return product.images;
+  // Load user default address if logged in
+  useEffect(() => {
+    if (currentUser) {
+      const defaultAddress = currentUser.addresses?.find(a => a.isDefault);
+      if (defaultAddress) {
+        setStreet(defaultAddress.street || '');
+        setCity(defaultAddress.city || '');
+        setStateField(defaultAddress.state || '');
+        setPincode(defaultAddress.zip || '');
+      }
     }
-    // Fallback if somehow empty
-    return ['https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?q=80&w=600&auto=format&fit=crop'];
-  }, [product]);
+  }, [currentUser]);
+
+  // Multi-image list setup with Color-Specific Image prepend option
+  const galleryImages = useMemo(() => {
+    let imagesList = [...(product.images || [])];
+    if (imagesList.length === 0) {
+      imagesList = ['https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?q=80&w=600&auto=format&fit=crop'];
+    }
+    
+    // Check if currently selected color has a mapped image
+    const matchingColorImg = product.colorImages?.[selectedColor];
+    if (matchingColorImg) {
+      // Prepend the matching color image if it's not already the first element
+      if (imagesList[0] !== matchingColorImg) {
+        imagesList = [matchingColorImg, ...imagesList.filter(img => img !== matchingColorImg)];
+      }
+    }
+    return imagesList;
+  }, [product, selectedColor]);
+
+  // Load shipping tiers and delivery zones from cache for real-time calculation
+  const tiers = useMemo(() => {
+    try {
+      const data = localStorage.getItem('SHIPPING_TIERS');
+      return data ? JSON.parse(data) : [];
+    } catch (_) {
+      return [];
+    }
+  }, []);
+
+  const zones = useMemo(() => {
+    try {
+      const data = localStorage.getItem('DELIVERY_ZONES');
+      return data ? JSON.parse(data) : [];
+    } catch (_) {
+      return [];
+    }
+  }, []);
+
+  // Compute shipping price dynamically based on quantity
+  const estimatedShippingPrice = useMemo(() => {
+    const matchingTier = tiers.find((t: any) => {
+      const minMatch = quantity >= t.minQty;
+      const maxMatch = t.maxQty === null || quantity <= t.maxQty;
+      return minMatch && maxMatch;
+    });
+    return matchingTier ? matchingTier.price : 79;
+  }, [tiers, quantity]);
+
+  // Compute delivery timeline based on pincode PREFIX matches
+  const deliveryEstimation = useMemo(() => {
+    if (!pincode.trim()) {
+      return { found: false, minDays: 5, maxDays: 8, zoneName: 'Standard' };
+    }
+    
+    // Sort zones to check longest prefix match first
+    let bestZone: any = null;
+    let longestPrefixLen = 0;
+
+    for (const z of zones) {
+      for (const prefix of z.pincodePrefixes || []) {
+        if (pincode.startsWith(prefix) && prefix.length > longestPrefixLen) {
+          longestPrefixLen = prefix.length;
+          bestZone = z;
+        }
+      }
+    }
+
+    if (bestZone) {
+      return { found: true, minDays: bestZone.minDays, maxDays: bestZone.maxDays, zoneName: bestZone.name };
+    }
+    return { found: false, minDays: 5, maxDays: 9, zoneName: 'General' };
+  }, [zones, pincode]);
+
+  const estimatedDeliveryRangeText = useMemo(() => {
+    const minDate = new Date();
+    minDate.setDate(minDate.getDate() + deliveryEstimation.minDays);
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + deliveryEstimation.maxDays);
+
+    const formatOption = { month: 'short', day: 'numeric' } as const;
+    const minStr = minDate.toLocaleDateString('en-IN', formatOption);
+    const maxStr = maxDate.toLocaleDateString('en-IN', formatOption);
+
+    return `${minStr} - ${maxStr}`;
+  }, [deliveryEstimation]);
 
   // Handle increment/decrement of qty
   const handleQtyChange = (type: 'inc' | 'dec') => {
@@ -86,7 +174,7 @@ export default function ProductDetailView({
       showToast('This element is currently out of stock.', 'error');
       return;
     }
-    // Add to cart first, then trigger cart slide open or navigation directly to user profile checkout
+    // Add to cart first
     handleAdd();
     showToast('Garment staged in Bag. Proceed with delivery formulation below.', 'success');
   };
@@ -97,23 +185,29 @@ export default function ProductDetailView({
       onNavigate('auth');
       return;
     }
-    
-    // Prefill form if user has default addresses saved
-    const defaultAddress = currentUser.addresses?.find(a => a.isDefault);
-    if (defaultAddress) {
-      setStreet(defaultAddress.street || '');
-      setCity(defaultAddress.city || '');
-      setStateField(defaultAddress.state || '');
-      setPincode(defaultAddress.zip || '');
-    } else {
-      setStreet('');
-      setCity('');
-      setStateField('');
-      setPincode('');
+
+    if (!street.trim() || !city.trim() || !stateField.trim() || !pincode.trim()) {
+      showToast('Please complete all delivery details in the block below before launching Checkout.', 'error');
+      return;
     }
     
-    setShippingErr('');
-    setIsShippingModalOpen(true);
+    const compiledAddress = `${street.trim()}, ${city.trim()}, ${stateField.trim()} - Pincode: ${pincode.trim()} (Estimated Transit Price: ₹${estimatedShippingPrice}, Expected Delivery: ${estimatedDeliveryRangeText})`;
+    
+    onQuickCheckoutViaWhatsApp(
+      {
+        productId: product.id,
+        name: product.name,
+        price: product.discountPrice || product.price,
+        image: galleryImages[0],
+        size: selectedSize,
+        color: selectedColorHexName(selectedColor),
+        stock: product.stock,
+      },
+      selectedSize,
+      selectedColorHexName(selectedColor),
+      quantity,
+      compiledAddress
+    );
   };
 
   // Convert Color color Hex to descriptive string
@@ -229,7 +323,10 @@ export default function ProductDetailView({
               {product.colors.map(col => (
                 <button
                   key={col}
-                  onClick={() => setSelectedColor(col)}
+                  onClick={() => {
+                    setSelectedColor(col);
+                    setActiveImageIdx(0);
+                  }}
                   className={`w-6 h-6 rounded-full border flex items-center justify-center transition ${
                     selectedColor === col ? 'ring-1 ring-primary ring-offset-2 scale-110' : 'hover:scale-105'
                   }`}
@@ -331,6 +428,99 @@ export default function ProductDetailView({
             </button>
           </div>
 
+          {/* INLINE DELIVERY ADDRESS FORM - Replaces popup modal for full seamless inline flow */}
+          <div className="border border-outline-variant p-5 bg-zinc-50 space-y-4 rounded-none">
+            <h3 className="font-label-caps text-[10px] font-bold text-primary uppercase tracking-widest border-b border-outline-variant pb-2 flex justify-between items-center">
+              <span>Delivery Formulation</span>
+              <span className="font-mono text-[9px] text-[#5d5f5f] uppercase tracking-wider font-semibold">Real-Time Estimates</span>
+            </h3>
+
+            {/* Price & Delivery timeline Estimator Indicator Panel */}
+            <div className="grid grid-cols-2 gap-3.5 bg-white p-3.5 border border-outline-variant font-mono">
+              <div className="space-y-1">
+                <span className="text-[9px] uppercase tracking-wider text-secondary block font-bold leading-none">SHIPPING VALUE</span>
+                <span className="text-xs font-bold text-primary">₹{estimatedShippingPrice}</span>
+                <span className="text-[7.5px] text-[#747474] block uppercase tracking-tight">quantity based tier</span>
+              </div>
+              <div className="space-y-1 border-l border-outline-variant pl-3.5">
+                <span className="text-[9px] uppercase tracking-wider text-secondary block font-bold leading-none">EXPECTED ARRIVAL</span>
+                <span className="text-xs font-bold text-emerald-700">{estimatedDeliveryRangeText}</span>
+                <span className="text-[7.5px] text-[#747474] block uppercase tracking-tight">
+                  {pincode ? `Zone: ${deliveryEstimation.zoneName}` : 'Enter pincode'}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3.5 text-xs text-secondary font-sans">
+              {/* Street */}
+              <div>
+                <label className="text-[9px] font-label-caps tracking-widest text-[#5d5f5f] block uppercase mb-1 font-bold">
+                  Street Address / Room / House No. *
+                </label>
+                <input
+                  type="text"
+                  value={street}
+                  onChange={(e) => setStreet(e.target.value)}
+                  placeholder="e.g. Landmark / Block 4A, Crescent View"
+                  className="w-full text-[11px] font-mono p-2 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none transition"
+                />
+              </div>
+
+              {/* City & State Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[9px] font-label-caps tracking-widest text-[#5d5f5f] block uppercase mb-1 font-bold">
+                    Town / City *
+                  </label>
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="e.g. Gurugram"
+                    className="w-full text-[11px] font-mono p-2 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[9px] font-label-caps tracking-widest text-[#5d5f5f] block uppercase mb-1 font-bold">
+                    State *
+                  </label>
+                  <input
+                    type="text"
+                    value={stateField}
+                    onChange={(e) => setStateField(e.target.value)}
+                    placeholder="e.g. Haryana"
+                    className="w-full text-[11px] font-mono p-2 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none transition"
+                  />
+                </div>
+              </div>
+
+              {/* Pincode with real-time feedback */}
+              <div>
+                <label className="text-[9px] font-label-caps tracking-widest text-[#5d5f5f] block uppercase mb-1 font-bold">
+                  Pincode / ZIP Code *
+                </label>
+                <input
+                  type="text"
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value)}
+                  placeholder="e.g. 122002"
+                  className="w-full text-[11px] font-mono p-2 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none transition"
+                />
+                {pincode.length > 0 && !deliveryEstimation.found && (
+                  <span className="text-[8px] font-mono text-zinc-500 mt-1 uppercase tracking-tight block">
+                    No custom delivery zone matched. Defaulting to general regional transit.
+                  </span>
+                )}
+                {pincode.length > 0 && deliveryEstimation.found && (
+                  <span className="text-[8px] font-mono text-emerald-700 mt-1 uppercase tracking-tight block font-semibold bg-emerald-50 border border-emerald-100 p-1">
+                    ✔ Zone: {deliveryEstimation.zoneName} matched ({deliveryEstimation.minDays}-{deliveryEstimation.maxDays} days transit)
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* ACCORDIONS SECTIONS - Highly clean minimal detail switches */}
           <div className="border-t border-outline-variant pt-2 space-y-1 text-xs">
             
@@ -344,10 +534,16 @@ export default function ProductDetailView({
                 {openSection === 'details' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               </button>
               {openSection === 'details' && (
-                <div className="mt-3 text-secondary space-y-2 leading-relaxed font-body-md text-xs">
-                  <p>• 100% fine long-staple cotton / industrial double layer blend.</p>
-                  <p>• Preshrunk technique to maximize lifetime alignment stability.</p>
-                  <p>• Cold gentle wash inside-out with dark neutral detergents. Hang dry naturally.</p>
+                <div className="mt-3 text-secondary space-y-2 leading-relaxed font-body-md text-xs whitespace-pre-line">
+                  {product.detailsSection && product.detailsSection.trim() ? (
+                    product.detailsSection
+                  ) : (
+                    <>
+                      <p>• 100% fine long-staple cotton / industrial double layer blend.</p>
+                      <p>• Preshrunk technique to maximize lifetime alignment stability.</p>
+                      <p>• Cold gentle wash inside-out with dark neutral detergents. Hang dry naturally.</p>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -362,9 +558,15 @@ export default function ProductDetailView({
                 {openSection === 'shipping' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               </button>
               {openSection === 'shipping' && (
-                <div className="mt-3 text-secondary space-y-2 leading-relaxed font-body-md text-xs">
-                  <p>• Premium Global tracked courier dispatch within 48 studio hours.</p>
-                  <p>• Returns accepted on structured garments in original pristine tags within 14 days of receipt.</p>
+                <div className="mt-3 text-secondary space-y-2 leading-relaxed font-body-md text-xs whitespace-pre-line">
+                  {product.shippingSection && product.shippingSection.trim() ? (
+                    product.shippingSection
+                  ) : (
+                    <>
+                      <p>• Premium Global tracked courier dispatch within 48 studio hours.</p>
+                      <p>• Returns accepted on structured garments in original pristine tags within 14 days of receipt.</p>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -379,9 +581,15 @@ export default function ProductDetailView({
                 {openSection === 'auth' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               </button>
               {openSection === 'auth' && (
-                <div className="mt-3 text-secondary space-y-2 leading-relaxed font-body-md text-xs">
-                  <p>• Playbook Studios elements are embedded with high-density security NFC signature chips.</p>
-                  <p>• 100% verified authentic production. Crafted strictly in premium atelier facilities.</p>
+                <div className="mt-3 text-secondary space-y-2 leading-relaxed font-body-md text-xs whitespace-pre-line">
+                  {product.authenticitySection && product.authenticitySection.trim() ? (
+                    product.authenticitySection
+                  ) : (
+                    <>
+                      <p>• Playbook Studios elements are embedded with high-density security NFC signature chips.</p>
+                      <p>• 100% verified authentic production. Crafted strictly in premium atelier facilities.</p>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -432,133 +640,6 @@ export default function ProductDetailView({
             ))}
           </div>
         </section>
-      )}
-
-      {/* SHAPE SHIPPING / DELIVERY ADDRESS STRUCTURAL FORM MODAL */}
-      {isShippingModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/65 backdrop-blur-[2.5px] pointer-events-auto">
-          <div 
-            className="bg-white border border-outline-variant w-full max-w-md p-6 relative flex flex-col space-y-4 animate-fade-in shadow-[0_20px_50px_rgba(0,0,0,0.3)] transition-all"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center border-b border-outline-variant pb-3.5">
-              <h3 className="font-display-lg text-xs font-bold text-primary uppercase tracking-widest">
-                Delivery Coordinates
-              </h3>
-              <button
-                onClick={() => setIsShippingModalOpen(false)}
-                className="text-secondary hover:text-primary transition font-bold font-mono text-[10px] uppercase tracking-wider ml-4"
-              >
-                ✕ Close
-              </button>
-            </div>
-
-            <p className="text-[9px] font-mono text-secondary uppercase leading-relaxed">
-              Design and supply your authentic delivery destination prior to compiling the WhatsApp payment dispatch template.
-            </p>
-
-            {shippingErr && (
-              <div className="bg-rose-50 border border-rose-200 text-rose-800 p-2.5 text-[10px] font-mono uppercase">
-                ⚠️ {shippingErr}
-              </div>
-            )}
-
-            <div className="space-y-3.5">
-              {/* Street Address */}
-              <div>
-                <label className="text-[9px] font-label-caps tracking-widest text-secondary block uppercase mb-1 font-semibold">
-                  Street Address / House No. / Landmark *
-                </label>
-                <input
-                  type="text"
-                  value={street}
-                  onChange={(e) => { setStreet(e.target.value); setShippingErr(''); }}
-                  placeholder="e.g. 502, Crescent Heights, Sector 15"
-                  className="w-full text-xs font-mono p-2.5 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {/* City */}
-                <div>
-                  <label className="text-[9px] font-label-caps tracking-widest text-secondary block uppercase mb-1 font-semibold">
-                    Town / City *
-                  </label>
-                  <input
-                    type="text"
-                    value={city}
-                    onChange={(e) => { setCity(e.target.value); setShippingErr(''); }}
-                    placeholder="e.g. Gurugram"
-                    className="w-full text-xs font-mono p-2.5 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none"
-                  />
-                </div>
-
-                {/* State */}
-                <div>
-                  <label className="text-[9px] font-label-caps tracking-widest text-secondary block uppercase mb-1 font-semibold">
-                    State *
-                  </label>
-                  <input
-                    type="text"
-                    value={stateField}
-                    onChange={(e) => { setStateField(e.target.value); setShippingErr(''); }}
-                    placeholder="e.g. Haryana"
-                    className="w-full text-xs font-mono p-2.5 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none"
-                  />
-                </div>
-              </div>
-
-              {/* Pincode */}
-              <div>
-                <label className="text-[9px] font-label-caps tracking-widest text-secondary block uppercase mb-1 font-semibold">
-                  Pincode / ZIP Code *
-                </label>
-                <input
-                  type="text"
-                  value={pincode}
-                  onChange={(e) => { setPincode(e.target.value); setShippingErr(''); }}
-                  placeholder="e.g. 122002"
-                  className="w-full text-xs font-mono p-2.5 border border-outline-variant focus:border-primary focus:outline-none bg-white text-primary rounded-none"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                const s = street.trim();
-                const c = city.trim();
-                const st = stateField.trim();
-                const p = pincode.trim();
-                if (!s || !c || !st || !p) {
-                  setShippingErr("All coordinates parameters must be completed.");
-                  return;
-                }
-                setShippingErr("");
-                const fullAddressStr = `${s}, ${c}, ${st} - ${p}`;
-                setIsShippingModalOpen(false);
-
-                onQuickCheckoutViaWhatsApp(
-                  {
-                    productId: product.id,
-                    name: product.name,
-                    price: product.discountPrice || product.price,
-                    image: galleryImages[0],
-                    size: selectedSize,
-                    color: selectedColorHexName(selectedColor),
-                    stock: product.stock,
-                  },
-                  selectedSize,
-                  selectedColorHexName(selectedColor),
-                  quantity,
-                  fullAddressStr
-                );
-              }}
-              className="w-full bg-primary text-on-primary font-button-text text-xs tracking-widest py-3.5 hover:bg-opacity-95 transition-all text-center uppercase font-bold"
-            >
-              Confirm Coordinates & Open WhatsApp
-            </button>
-          </div>
-        </div>
       )}
     </div>
   );
