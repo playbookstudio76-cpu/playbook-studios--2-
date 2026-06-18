@@ -383,7 +383,7 @@ export default function AdminDashboard({
   }, [users, customerSearchQuery]);
 
   const currentUser = getCurrentUser();
-  const currentEmail = currentUser?.email || 'playbookstudio79@gmail.com';
+  const currentEmail = currentUser?.email || 'playbookstudio76@gmail.com';
 
   return (
     <div className="flex-grow max-w-[1440px] mx-auto px-4 md:px-[64px] py-[64px] font-body-md text-on-background">

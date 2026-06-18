@@ -19,7 +19,7 @@ service cloud.firestore {
     function isAdmin() {
       // Check either for the bootstrapped admin email or DB profile role
       return isSignedIn() && (
-        request.auth.token.email == "playbookstudio79@gmail.com" ||
+        request.auth.token.email == "playbookstudio76@gmail.com" ||
         request.auth.token.email == "sohansahustudy@gmail.com" ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
@@ -33,7 +33,7 @@ service cloud.firestore {
         isOwner(userId) && (
           // Forbid users from escalating their own privilege to admin unless they are the official bootstrap email
           request.resource.data.role == "customer" || 
-          request.resource.data.email == "playbookstudio79@gmail.com" ||
+          request.resource.data.email == "playbookstudio76@gmail.com" ||
           (resource != null && resource.data.role == request.resource.data.role)
         )
       ) || isAdmin();

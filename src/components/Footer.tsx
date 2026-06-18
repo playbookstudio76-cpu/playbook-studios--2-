@@ -36,7 +36,7 @@ export default function Footer({ onNavigate }: { onNavigate?: (view: string, pro
             Privacy Policy
           </button>
           <button 
-            onClick={() => alert('Support Representative channel opened! Line is ready at playbookstudio79@gmail.com')}
+            onClick={() => alert('Support Representative channel opened! Line is ready at playbookstudio76@gmail.com')}
             className="hover:text-primary hover:underline transition-all cursor-pointer"
           >
             Contact

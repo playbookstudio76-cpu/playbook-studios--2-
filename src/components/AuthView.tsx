@@ -61,7 +61,7 @@ export default function AuthView({ onAuthSuccess, onNavigate }: AuthViewProps) {
   };
 
   const loadDemoAdmin = () => {
-    setEmail('playbookstudio79@gmail.com');
+    setEmail('playbookstudio76@gmail.com');
     setPassword('adminpass79');
     setIsLogin(true);
   };

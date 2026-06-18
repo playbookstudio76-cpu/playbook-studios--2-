@@ -41,7 +41,7 @@ export function cleanFirestoreData<T extends object>(obj: T): T {
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   const clean = email.trim().toLowerCase();
-  return clean === 'playbookstudio79@gmail.com' || clean === 'sohansahustudy@gmail.com';
+  return clean === 'playbookstudio76@gmail.com' || clean === 'sohansahustudy@gmail.com';
 }
 
 // Error handling types and enumerations as requested by the Firebase Skill constraints
@@ -148,7 +148,7 @@ export function initLocalStorageDB() {
         id: 'user_admin',
         firstName: 'Playbook',
         lastName: 'Admin',
-        email: 'playbookstudio79@gmail.com',
+        email: 'playbookstudio76@gmail.com',
         phone: '+1 (800) 555-0199',
         role: 'admin',
         createdAt: new Date().toISOString()
