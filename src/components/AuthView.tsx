@@ -73,7 +73,7 @@ export default function AuthView({ onAuthSuccess, onNavigate }: AuthViewProps) {
         <div 
           className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 hover:scale-105"
           style={{ 
-            backgroundImage: `url('https://res.cloudinary.com/df4qsb2lr/image/upload/v1781714111/Gemini_Generated_Image_rk291rk291rk291r_qpqxxr.png?q=80&w=800&auto=format&fit=crop')` 
+            backgroundImage: `url('https://res.cloudinary.com/df4qsb2lr/image/upload/v1781776551/Gemini_Generated_Image_rk291rk291rk291r_1_ec9hin.png?q=80&w=800&auto=format&fit=crop')` 
           }}
         />
         {/* Subtle architectural tint overlay */}
