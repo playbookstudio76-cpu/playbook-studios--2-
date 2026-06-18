@@ -1,4 +1,20 @@
-import { UserProfile, Product, Order, CartItem, Category, UserRole } from './types';
+import { 
+  UserProfile, 
+  Product, 
+  Order, 
+  CartItem, 
+  Category, 
+  UserRole,
+  Coupon,
+  FloatingBanner,
+  AnnouncementBar,
+  SocialConfig,
+  WhatsAppConfig,
+  TeamMember,
+  NewsletterEmail,
+  UserWallet,
+  WalletTransaction
+} from './types';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from './mockData';
 import { db, auth } from './firebase';
 import { 
@@ -26,6 +42,14 @@ const KEYS = {
   ORDERS: 'pb_orders_db',
   CATEGORIES: 'pb_categories_db',
   CARTS: 'pb_carts_db', // keyed by userId
+  COUPONS: 'pb_coupons_db',
+  BANNERS: 'pb_banners_db',
+  ANNOUNCEMENTS: 'pb_announcements_db',
+  TEAM_MEMBERS: 'pb_team_members_db',
+  NEWSLETTER_EMAILS: 'pb_newsletter_emails_db',
+  WALLETS: 'pb_wallets_db',
+  SOCIAL_LINKS: 'pb_social_links_db',
+  WHATSAPP_CONFIG: 'pb_whatsapp_config_db',
 };
 
 export function cleanFirestoreData<T extends object>(obj: T): T {
@@ -41,7 +65,7 @@ export function cleanFirestoreData<T extends object>(obj: T): T {
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   const clean = email.trim().toLowerCase();
-  return clean === 'playbookstudio76@gmail.com' || clean === 'sohansahustudy@gmail.com';
+  return clean === 'playbookstudio76@gmail.com';
 }
 
 // Error handling types and enumerations as requested by the Firebase Skill constraints
@@ -167,6 +191,12 @@ export function startFirebaseSync(onUpdate: () => void) {
   let unsubCategories: () => void = () => {};
   let unsubOrders: () => void = () => {};
   let unsubUsers: () => void = () => {};
+  let unsubAnnouncements: () => void = () => {};
+  let unsubBanners: () => void = () => {};
+  let unsubCoupons: () => void = () => {};
+  let unsubTeamMembers: () => void = () => {};
+  let unsubNewsletterEmails: () => void = () => {};
+  let unsubSettings: () => void = () => {};
 
   try {
     // 1. Sync Products (allowed for everyone)
@@ -193,13 +223,88 @@ export function startFirebaseSync(onUpdate: () => void) {
       handleFirestoreError(error, OperationType.GET, 'categories');
     });
 
+    // 2b. Sync Announcements (allowed for everyone)
+    unsubAnnouncements = onSnapshot(collection(db, 'announcements'), (snapshot) => {
+      const items: AnnouncementBar[] = [];
+      snapshot.forEach(docSnap => {
+        items.push({ id: docSnap.id, ...docSnap.data() } as AnnouncementBar);
+      });
+      if (items.length > 0) {
+        localStorage.setItem(KEYS.ANNOUNCEMENTS, JSON.stringify(items));
+        onUpdate();
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'announcements');
+    });
+
+    // 2c. Sync Banners (allowed for everyone)
+    unsubBanners = onSnapshot(collection(db, 'banners'), (snapshot) => {
+      const items: FloatingBanner[] = [];
+      snapshot.forEach(docSnap => {
+        items.push({ id: docSnap.id, ...docSnap.data() } as FloatingBanner);
+      });
+      if (items.length > 0) {
+        localStorage.setItem(KEYS.BANNERS, JSON.stringify(items));
+        onUpdate();
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'banners');
+    });
+
+    // 2d. Sync Coupons (allowed for everyone)
+    unsubCoupons = onSnapshot(collection(db, 'coupons'), (snapshot) => {
+      const items: Coupon[] = [];
+      snapshot.forEach(docSnap => {
+        items.push({ id: docSnap.id, ...docSnap.data() } as Coupon);
+      });
+      if (items.length > 0) {
+        localStorage.setItem(KEYS.COUPONS, JSON.stringify(items));
+        onUpdate();
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'coupons');
+    });
+
+    // 2e. Sync Team Members (allowed for everyone)
+    unsubTeamMembers = onSnapshot(collection(db, 'team_members'), (snapshot) => {
+      const items: TeamMember[] = [];
+      snapshot.forEach(docSnap => {
+        items.push({ id: docSnap.id, ...docSnap.data() } as TeamMember);
+      });
+      if (items.length > 0) {
+        localStorage.setItem(KEYS.TEAM_MEMBERS, JSON.stringify(items));
+        onUpdate();
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'team_members');
+    });
+
+    // 2f. Sync Settings (allowed for everyone, specifically social_links and whatsapp_config)
+    unsubSettings = onSnapshot(collection(db, 'settings'), (snapshot) => {
+      snapshot.forEach(docSnap => {
+        const id = docSnap.id;
+        const data = docSnap.data();
+        if (id === 'social_links') {
+          localStorage.setItem(KEYS.SOCIAL_LINKS, JSON.stringify({ id, ...data }));
+        } else if (id === 'whatsapp_config') {
+          localStorage.setItem(KEYS.WHATSAPP_CONFIG, JSON.stringify({ id, ...data }));
+        }
+      });
+      onUpdate();
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'settings');
+    });
+
     // 3. Reactively sync authenticated user content (orders/profile)
     const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       // Unsubscribe existing listeners
       unsubOrders();
       unsubUsers();
+      unsubNewsletterEmails();
+      
       unsubOrders = () => {};
       unsubUsers = () => {};
+      unsubNewsletterEmails = () => {};
 
       if (firebaseUser) {
         let userProfile: UserProfile | null = null;
@@ -231,8 +336,12 @@ export function startFirebaseSync(onUpdate: () => void) {
           }
         }
 
-        if (userProfile.role === 'admin') {
-          // Administrators listen to whole orders & whole users database
+        if (userProfile && userProfile.role === 'admin' && !isAdminEmail(userProfile.email)) {
+          userProfile.role = 'customer';
+        }
+
+        if (userProfile && userProfile.role === 'admin') {
+          // Administrators listen to whole orders & whole users database & whole newsletter_emails database
           unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
             const items: Order[] = [];
             snapshot.forEach(docSnap => {
@@ -253,6 +362,17 @@ export function startFirebaseSync(onUpdate: () => void) {
             onUpdate();
           }, (error) => {
             handleFirestoreError(error, OperationType.GET, 'users');
+          });
+
+          unsubNewsletterEmails = onSnapshot(collection(db, 'newsletter_emails'), (snapshot) => {
+            const items: NewsletterEmail[] = [];
+            snapshot.forEach(docSnap => {
+              items.push({ id: docSnap.id, ...docSnap.data() } as NewsletterEmail);
+            });
+            localStorage.setItem(KEYS.NEWSLETTER_EMAILS, JSON.stringify(items));
+            onUpdate();
+          }, (error) => {
+            handleFirestoreError(error, OperationType.GET, 'newsletter_emails');
           });
         } else {
           // Customers only listen to their own customer orders to satisfy Firestore security rules
@@ -292,6 +412,12 @@ export function startFirebaseSync(onUpdate: () => void) {
       unsubOrders();
       unsubUsers();
       unsubAuth();
+      unsubAnnouncements();
+      unsubBanners();
+      unsubCoupons();
+      unsubTeamMembers();
+      unsubNewsletterEmails();
+      unsubSettings();
     };
 
   } catch (err) {
@@ -303,8 +429,13 @@ export function startFirebaseSync(onUpdate: () => void) {
 // ---------------- AUTH SERVICES ----------------
 
 export function getCurrentUser(): UserProfile | null {
-  const user = localStorage.getItem(KEYS.CURRENT_USER);
-  return user ? JSON.parse(user) : null;
+  const userStr = localStorage.getItem(KEYS.CURRENT_USER);
+  if (!userStr) return null;
+  const user = JSON.parse(userStr) as UserProfile;
+  if (user && user.role === 'admin' && !isAdminEmail(user.email)) {
+    user.role = 'customer';
+  }
+  return user;
 }
 
 export function saveCurrentUserSnapshot(user: UserProfile) {
@@ -571,6 +702,16 @@ export async function addCategory(name: string): Promise<Category> {
   return newCat;
 }
 
+export async function deleteCategory(id: string): Promise<void> {
+  const cats = getAllCategories().filter(c => c.id !== id);
+  localStorage.setItem(KEYS.CATEGORIES, JSON.stringify(cats));
+  try {
+    await deleteDoc(doc(db, 'categories', id));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `categories/${id}`);
+  }
+}
+
 
 // ---------------- CART SERVICES ----------------
 
@@ -612,15 +753,21 @@ export function createOrder(
   items: CartItem[],
   subtotal: number,
   shipping: number,
-  total: number
+  total: number,
+  walletApplied: number = 0,
+  couponCodeApplied: string = ''
 ): Order {
   const orders = getAllOrders();
   
+  // Verify first-order status before adding the current one
+  const userOrdersPrior = orders.filter(o => o.userId === userId);
+  const isFirstOrder = userOrdersPrior.length === 0;
+
   // Generate high-end unique order number
   const uniqueNumCode = Math.floor(1000 + Math.random() * 9000);
   const orderNumber = `PB-${uniqueNumCode}`;
   
-  const newOrder: Order = {
+  const newOrder: Order & { walletApplied?: number; couponCodeApplied?: string } = {
     id: 'ord_' + Math.random().toString(36).substr(2, 9),
     orderNumber,
     userId,
@@ -635,6 +782,26 @@ export function createOrder(
     status: 'Pending Payment',
     createdAt: new Date().toISOString()
   };
+
+  if (walletApplied > 0) {
+    newOrder.walletApplied = walletApplied;
+    // Deduct from wallet
+    updateUserWallet(userId, -walletApplied, `Applied to Order ${orderNumber}`);
+  }
+
+  if (couponCodeApplied) {
+    newOrder.couponCodeApplied = couponCodeApplied;
+  }
+
+  // If first order, reward user ₹100 back to wallet
+  if (isFirstOrder && userId) {
+    updateUserWallet(userId, 100, `🎁 Playbook First-Order Bonus Reward`);
+  }
+
+  // Register user email to Merch Mail list as a prior customer of playbook
+  if (customerEmail) {
+    addNewsletterEmail(customerEmail, true);
+  }
 
   orders.unshift(newOrder);
   localStorage.setItem(KEYS.ORDERS, JSON.stringify(orders));
@@ -681,8 +848,10 @@ export function updateOrderStatus(orderId: string, status: Order['status']): boo
   return true;
 }
 
-// WhatsApp redirect trigger link generator
+// WhatsApp redirect trigger link generator dynamically pulling phone from managed settings
 export function getWhatsAppCheckoutUrl(order: Order): string {
+  const config = getWhatsAppConfig();
+  const rawNum = config.phoneNumber.replace(/[^0-9]/g, '');
   const itemsText = order.items
     .map(item => `• ${item.name} (${item.color} | Size ${item.size}) x${item.quantity}`)
     .join('%0A');
@@ -695,5 +864,416 @@ export function getWhatsAppCheckoutUrl(order: Order): string {
     `*Products:*%0A${itemsText}%0A%0A` +
     `Please confirm my order and share details for payment. Thank you!`;
 
-  return `https://wa.me/919861239776?text=${text}`;
+  return `https://wa.me/${rawNum}?text=${text}`;
 }
+
+// ---------------- ANNOUNCEMENT BARS SERVICE ----------------
+
+export function getAllAnnouncements(): AnnouncementBar[] {
+  const data = localStorage.getItem(KEYS.ANNOUNCEMENTS);
+  if (!data) {
+    const defaults: AnnouncementBar[] = [{
+      id: "ann_default",
+      text: "⚡ HARVEST PREMIUM STREETWEAR: FREE ₹300 SIGNUP BONUS INSTANTLY LOADED TO YOUR WALLET! ⚡",
+      isActive: true,
+      backgroundColor: "#1D4ED8",
+      textColor: "#FFFFFF",
+      createdAt: new Date().toISOString()
+    }];
+    localStorage.setItem(KEYS.ANNOUNCEMENTS, JSON.stringify(defaults));
+    return defaults;
+  }
+  return JSON.parse(data);
+}
+
+export async function saveAnnouncement(bar: AnnouncementBar): Promise<void> {
+  const bars = getAllAnnouncements();
+  const idx = bars.findIndex(b => b.id === bar.id);
+  if (idx !== -1) {
+    bars[idx] = bar;
+  } else {
+    bars.unshift(bar);
+  }
+  localStorage.setItem(KEYS.ANNOUNCEMENTS, JSON.stringify(bars));
+  try {
+    await setDoc(doc(db, 'announcements', bar.id), cleanFirestoreData(bar));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `announcements/${bar.id}`);
+  }
+}
+
+export async function deleteAnnouncement(id: string): Promise<void> {
+  const bars = getAllAnnouncements().filter(b => b.id !== id);
+  localStorage.setItem(KEYS.ANNOUNCEMENTS, JSON.stringify(bars));
+  try {
+    await deleteDoc(doc(db, 'announcements', id));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `announcements/${id}`);
+  }
+}
+
+// ---------------- FLOATING BANNERS SERVICE ----------------
+
+export function getAllBanners(): FloatingBanner[] {
+  const data = localStorage.getItem(KEYS.BANNERS);
+  if (!data) {
+    const defaults: FloatingBanner[] = [{
+      id: "ban_default",
+      title: "EXCLUSIVE DROP ENROLLMENT",
+      text: "Register now and get our winter collection alerts and an immediate ₹300 in your store wallet!",
+      linkUrl: "#",
+      isActive: true,
+      position: "bottom-right",
+      createdAt: new Date().toISOString()
+    }];
+    localStorage.setItem(KEYS.BANNERS, JSON.stringify(defaults));
+    return defaults;
+  }
+  return JSON.parse(data);
+}
+
+export async function saveBanner(banner: FloatingBanner): Promise<void> {
+  const banners = getAllBanners();
+  const idx = banners.findIndex(b => b.id === banner.id);
+  if (idx !== -1) {
+    banners[idx] = banner;
+  } else {
+    banners.unshift(banner);
+  }
+  localStorage.setItem(KEYS.BANNERS, JSON.stringify(banners));
+  try {
+    await setDoc(doc(db, 'banners', banner.id), cleanFirestoreData(banner));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `banners/${banner.id}`);
+  }
+}
+
+export async function deleteBanner(id: string): Promise<void> {
+  const banners = getAllBanners().filter(b => b.id !== id);
+  localStorage.setItem(KEYS.BANNERS, JSON.stringify(banners));
+  try {
+    await deleteDoc(doc(db, 'banners', id));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `banners/${id}`);
+  }
+}
+
+// ---------------- SOCIAL MEDIA CONFIG SERVICE ----------------
+
+export function getSocialConfig(): SocialConfig {
+  const data = localStorage.getItem(KEYS.SOCIAL_LINKS);
+  if (!data) {
+    const defaultConfig: SocialConfig = {
+      id: 'social_links',
+      instagram: 'https://instagram.com/playbookstudios',
+      twitter: 'https://twitter.com/playbookstudios',
+      youtube: 'https://youtube.com/playbookstudios',
+      facebook: '',
+      pinterest: ''
+    };
+    localStorage.setItem(KEYS.SOCIAL_LINKS, JSON.stringify(defaultConfig));
+    return defaultConfig;
+  }
+  return JSON.parse(data);
+}
+
+export async function saveSocialConfig(config: SocialConfig): Promise<void> {
+  localStorage.setItem(KEYS.SOCIAL_LINKS, JSON.stringify(config));
+  try {
+    await setDoc(doc(db, 'settings', 'social_links'), cleanFirestoreData(config));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'settings/social_links');
+  }
+}
+
+// ---------------- WHATSAPP CONFIG SERVICE ----------------
+
+export function getWhatsAppConfig(): WhatsAppConfig {
+  const data = localStorage.getItem(KEYS.WHATSAPP_CONFIG);
+  if (!data) {
+    const defaultConfig: WhatsAppConfig = {
+      id: 'whatsapp_config',
+      phoneNumber: '919861239776',
+      isEnabled: true,
+      prefilledMessageText: "Hey Playbook! I am interested in ordering: "
+    };
+    localStorage.setItem(KEYS.WHATSAPP_CONFIG, JSON.stringify(defaultConfig));
+    return defaultConfig;
+  }
+  return JSON.parse(data);
+}
+
+export async function saveWhatsAppConfig(config: WhatsAppConfig): Promise<void> {
+  localStorage.setItem(KEYS.WHATSAPP_CONFIG, JSON.stringify(config));
+  try {
+    await setDoc(doc(db, 'settings', 'whatsapp_config'), cleanFirestoreData(config));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'settings/whatsapp_config');
+  }
+}
+
+// ---------------- COUPONS MANAGEMENT SERVICE ----------------
+
+export function getAllCoupons(): Coupon[] {
+  const data = localStorage.getItem(KEYS.COUPONS);
+  if (!data) {
+    const defaults: Coupon[] = [
+      {
+        id: "cp_percent_15",
+        code: "PB15",
+        discountType: "percent",
+        discountValue: 15,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: "cp_fixed_300",
+        code: "PBK300",
+        discountType: "fixed",
+        discountValue: 300,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      }
+    ];
+    localStorage.setItem(KEYS.COUPONS, JSON.stringify(defaults));
+    return defaults;
+  }
+  return JSON.parse(data);
+}
+
+export async function saveCoupon(coupon: Coupon): Promise<void> {
+  const coupons = getAllCoupons();
+  const idx = coupons.findIndex(c => c.id === coupon.id);
+  if (idx !== -1) {
+    coupons[idx] = coupon;
+  } else {
+    coupons.unshift(coupon);
+  }
+  localStorage.setItem(KEYS.COUPONS, JSON.stringify(coupons));
+  try {
+    await setDoc(doc(db, 'coupons', coupon.id), cleanFirestoreData(coupon));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `coupons/${coupon.id}`);
+  }
+}
+
+export async function deleteCoupon(id: string): Promise<void> {
+  const coupons = getAllCoupons().filter(c => c.id !== id);
+  localStorage.setItem(KEYS.COUPONS, JSON.stringify(coupons));
+  try {
+    await deleteDoc(doc(db, 'coupons', id));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `coupons/${id}`);
+  }
+}
+
+// ---------------- TEAM MEMBERS MANAGEMENT SERVICE ----------------
+
+export function getAllTeamMembers(): TeamMember[] {
+  const data = localStorage.getItem(KEYS.TEAM_MEMBERS);
+  if (!data) {
+    const defaults: TeamMember[] = [
+      {
+        id: "tm_admin_sohan",
+        name: "Sohan Sahu",
+        email: "sohansahustudy@gmail.com",
+        role: "admin",
+        permissions: ["products", "orders", "coupons", "banners", "team", "wallet"],
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: "tm_editor_alex",
+        name: "Alex Designer",
+        email: "editor@playbook.com",
+        role: "editor",
+        permissions: ["products", "coupons", "banners"],
+        createdAt: new Date().toISOString()
+      }
+    ];
+    localStorage.setItem(KEYS.TEAM_MEMBERS, JSON.stringify(defaults));
+    return defaults;
+  }
+  return JSON.parse(data);
+}
+
+export async function saveTeamMember(member: TeamMember): Promise<void> {
+  const members = getAllTeamMembers();
+  const idx = members.findIndex(m => m.id === member.id);
+  if (idx !== -1) {
+    members[idx] = member;
+  } else {
+    members.unshift(member);
+  }
+  localStorage.setItem(KEYS.TEAM_MEMBERS, JSON.stringify(members));
+  try {
+    await setDoc(doc(db, 'team_members', member.id), cleanFirestoreData(member));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `team_members/${member.id}`);
+  }
+}
+
+export async function deleteTeamMember(id: string): Promise<void> {
+  const members = getAllTeamMembers().filter(m => m.id !== id);
+  localStorage.setItem(KEYS.TEAM_MEMBERS, JSON.stringify(members));
+  try {
+    await deleteDoc(doc(db, 'team_members', id));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `team_members/${id}`);
+  }
+}
+
+// ---------------- NEWSLETTER / MERCH MAIL SERVICE ----------------
+
+export function getAllNewsletterEmails(): NewsletterEmail[] {
+  const data = localStorage.getItem(KEYS.NEWSLETTER_EMAILS);
+  if (!data) {
+    const defaults: NewsletterEmail[] = [
+      {
+        id: "nm_1",
+        email: "prior_customer1@playbook.com",
+        isPriorCustomer: true,
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: "nm_2",
+        email: "streetwear_fan@gmail.com",
+        isPriorCustomer: false,
+        createdAt: new Date().toISOString()
+      }
+    ];
+    localStorage.setItem(KEYS.NEWSLETTER_EMAILS, JSON.stringify(defaults));
+    return defaults;
+  }
+  return JSON.parse(data);
+}
+
+export async function addNewsletterEmail(email: string, isPriorCustomer: boolean = false): Promise<NewsletterEmail> {
+  const list = getAllNewsletterEmails();
+  const clean = email.trim().toLowerCase();
+  
+  const existing = list.find(nm => nm.email === clean);
+  if (existing) {
+    if (isPriorCustomer && !existing.isPriorCustomer) {
+      existing.isPriorCustomer = true;
+      localStorage.setItem(KEYS.NEWSLETTER_EMAILS, JSON.stringify(list));
+      try {
+        await setDoc(doc(db, 'newsletter_emails', existing.id), cleanFirestoreData(existing));
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    return existing;
+  }
+
+  const newItem: NewsletterEmail = {
+    id: "nm_" + Math.random().toString(36).substr(2, 9),
+    email: clean,
+    isPriorCustomer,
+    createdAt: new Date().toISOString()
+  };
+
+  list.push(newItem);
+  localStorage.setItem(KEYS.NEWSLETTER_EMAILS, JSON.stringify(list));
+  try {
+    await setDoc(doc(db, 'newsletter_emails', newItem.id), cleanFirestoreData(newItem));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `newsletter_emails/${newItem.id}`);
+  }
+  return newItem;
+}
+
+export async function deleteNewsletterEmail(id: string): Promise<void> {
+  const list = getAllNewsletterEmails().filter(m => m.id !== id);
+  localStorage.setItem(KEYS.NEWSLETTER_EMAILS, JSON.stringify(list));
+  try {
+    await deleteDoc(doc(db, 'newsletter_emails', id));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `newsletter_emails/${id}`);
+  }
+}
+
+// ---------------- CUSTOMER WALLETS SERVICE ----------------
+
+export function getUserWallet(userId: string): UserWallet {
+  if (!userId) {
+    return {
+      id: 'guest',
+      balance: 0,
+      transactions: []
+    };
+  }
+  const data = localStorage.getItem(KEYS.WALLETS);
+  const walletsMap: Record<string, UserWallet> = data ? JSON.parse(data) : {};
+  
+  if (!walletsMap[userId]) {
+    const newWallet: UserWallet = {
+      id: userId,
+      balance: 300,
+      transactions: [
+        {
+          id: "tx_signup_bonus",
+          amount: 300,
+          description: "🎁 Welcome Signup Bonus",
+          createdAt: new Date().toISOString()
+        }
+      ]
+    };
+    walletsMap[userId] = newWallet;
+    localStorage.setItem(KEYS.WALLETS, JSON.stringify(walletsMap));
+    
+    setDoc(doc(db, 'wallets', userId), cleanFirestoreData(newWallet)).catch(e => {
+      handleFirestoreError(e, OperationType.WRITE, `wallets/${userId}`);
+    });
+    
+    return newWallet;
+  }
+  
+  return walletsMap[userId];
+}
+
+export function getAllWallets(): UserWallet[] {
+  const data = localStorage.getItem(KEYS.WALLETS);
+  if (!data) return [];
+  const map: Record<string, UserWallet> = JSON.parse(data);
+  return Object.values(map);
+}
+
+export function saveWalletRaw(wallet: UserWallet) {
+  const data = localStorage.getItem(KEYS.WALLETS);
+  const walletsMap: Record<string, UserWallet> = data ? JSON.parse(data) : {};
+  walletsMap[wallet.id] = wallet;
+  localStorage.setItem(KEYS.WALLETS, JSON.stringify(walletsMap));
+  setDoc(doc(db, 'wallets', wallet.id), cleanFirestoreData(wallet)).catch(e => {
+    handleFirestoreError(e, OperationType.WRITE, `wallets/${wallet.id}`);
+  });
+}
+
+export function updateUserWallet(userId: string, changeAmount: number, description: string): UserWallet {
+  const data = localStorage.getItem(KEYS.WALLETS);
+  const walletsMap: Record<string, UserWallet> = data ? JSON.parse(data) : {};
+  
+  const currentWallet = getUserWallet(userId);
+  const updatedWallet: UserWallet = {
+    ...currentWallet,
+    balance: Math.max(0, currentWallet.balance + changeAmount),
+    transactions: [
+      {
+        id: "tx_" + Math.random().toString(36).substr(2, 9),
+        amount: changeAmount,
+        description,
+        createdAt: new Date().toISOString()
+      },
+      ...currentWallet.transactions
+    ]
+  };
+  
+  walletsMap[userId] = updatedWallet;
+  localStorage.setItem(KEYS.WALLETS, JSON.stringify(walletsMap));
+  
+  setDoc(doc(db, 'wallets', userId), cleanFirestoreData(updatedWallet)).catch(err => {
+    handleFirestoreError(err, OperationType.WRITE, `wallets/${userId}`);
+  });
+  
+  return updatedWallet;
+}
+

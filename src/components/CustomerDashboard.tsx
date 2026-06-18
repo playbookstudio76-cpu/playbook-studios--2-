@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { User, Package, LogOut, ChevronDown, ChevronUp, MapPin, Plus, CheckCircle2, Circle, Edit3, X } from 'lucide-react';
+import { User, Package, LogOut, ChevronDown, ChevronUp, MapPin, Plus, CheckCircle2, Circle, Edit3, X, Wallet, Heart, Shield } from 'lucide-react';
 import { UserProfile, Order, Address } from '../types';
-import { saveCurrentUserSnapshot } from '../storage';
+import { saveCurrentUserSnapshot, getUserWallet } from '../storage';
 
 interface CustomerDashboardProps {
   currentUser: UserProfile;
@@ -19,7 +19,7 @@ export default function CustomerDashboard({
   onUpdateUser,
 }: CustomerDashboardProps) {
   // Sidebar tab control
-  const [activeTab, setActiveTab] = useState<'profile' | 'orders'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'wallet'>('profile');
 
   // Accordion open for order lines
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(orders[0]?.id || null);
@@ -195,6 +195,17 @@ export default function CustomerDashboard({
             >
               <Package className="w-4 h-4 text-on-tertiary-container" />
               <span>My Orders ({orders.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('wallet')}
+              className={`flex items-center space-x-2.5 px-4 py-3 text-left w-full hover:bg-surface-container border-b-2 md:border-b-0 md:border-l-2 transition-all ${
+                activeTab === 'wallet'
+                  ? 'border-primary text-primary font-bold bg-surface-container-low'
+                  : 'border-transparent text-secondary'
+              }`}
+            >
+              <Wallet className="w-4 h-4 text-on-tertiary-container" />
+              <span>My Wallet (₹{getUserWallet(currentUser.id).balance})</span>
             </button>
             <button
               onClick={onLogout}
@@ -510,7 +521,7 @@ export default function CustomerDashboard({
                 </div>
               </div>
             </div>
-          ) : (
+          ) : activeTab === 'orders' ? (
             
             // ORDER DETAILS & TIMELINE - Matches Screenshot 4 and 5
             <div className="space-y-8">
@@ -675,6 +686,77 @@ export default function CustomerDashboard({
                     <Package className="w-8 h-8 mx-auto text-secondary mb-3 stroke-[1]" />
                     <p className="font-headline-sm text-base text-primary">No Active Direct Seeding Orders Logged</p>
                     <p className="font-body-md text-xs text-secondary mt-1">Start scanning the collections grid to place an order via WhatsApp confirmation.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            // MY WALLET VIEW
+            <div className="space-y-[48px]">
+              <div>
+                <h1 className="font-display-lg text-[28px] md:text-[36px] tracking-tight text-primary uppercase font-medium">
+                  My Web Wallet
+                </h1>
+                <p className="font-body-md text-xs text-secondary mt-1">
+                  Secure store credits, gift keys, and post-order rewards of Playbook Studios.
+                </p>
+              </div>
+
+              {/* Wallet Card balance banner */}
+              <div className="bg-black text-white p-8 md:p-10 flex flex-col md:flex-row justify-between items-start md:items-center border border-neutral-800">
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Wallet className="w-5 h-5 text-amber-500" />
+                    <span className="font-mono text-xs text-neutral-400 uppercase tracking-widest">Active Store Balance</span>
+                  </div>
+                  <div>
+                    <span className="font-mono text-4xl md:text-5xl font-bold">₹{getUserWallet(currentUser.id).balance.toLocaleString()}</span>
+                    <span className="font-mono text-xs text-neutral-400 ml-2">INR</span>
+                  </div>
+                </div>
+
+                <div className="mt-6 md:mt-0 bg-neutral-900 border border-neutral-800 p-4 space-y-2 max-w-sm rounded-sm">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-500">🛒 Wallet Usage Policy</h4>
+                  <p className="text-[10px] text-neutral-400 leading-relaxed font-mono">
+                    Wallet cash and coupon discounts can combine to cover up to 15% of your total checkout cart value. If an applied Coupon alone covers 15% or more, your wallet balance will remain preserved for later.
+                  </p>
+                </div>
+              </div>
+
+              {/* Transaction Register */}
+              <div className="space-y-6">
+                <h3 className="font-label-caps text-xs tracking-[0.2em] font-bold text-primary uppercase border-b border-outline-variant pb-3">
+                  Transaction Ledger History
+                </h3>
+
+                {getUserWallet(currentUser.id).transactions.length > 0 ? (
+                  <div className="border border-outline-variant overflow-hidden">
+                    <table className="w-full text-left font-mono text-xs">
+                      <thead>
+                        <tr className="bg-surface-container border-b border-outline-variant text-secondary uppercase font-bold text-[10px] tracking-widest">
+                          <th className="p-4">Transaction ID</th>
+                          <th className="p-4">Date</th>
+                          <th className="p-4">Description</th>
+                          <th className="p-4 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-outline-variant">
+                        {getUserWallet(currentUser.id).transactions.map(tx => (
+                          <tr key={tx.id} className="hover:bg-slate-50 transition">
+                            <td className="p-4 font-semibold text-secondary">{tx.id}</td>
+                            <td className="p-4 text-secondary">{new Date(tx.createdAt).toLocaleDateString()} {new Date(tx.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                            <td className="p-4 text-primary font-body-md font-semibold text-xs">{tx.description}</td>
+                            <td className={`p-4 text-right font-semibold font-mono ${tx.amount > 0 ? 'text-green-600' : 'text-primary'}`}>
+                              {tx.amount > 0 ? `+₹${tx.amount.toLocaleString()}` : `-₹${Math.abs(tx.amount).toLocaleString()}`}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 border border-dashed border-outline-variant bg-slate-50 text-secondary">
+                    <p className="text-xs">No wallet transactions logged.</p>
                   </div>
                 )}
               </div>

@@ -34,6 +34,7 @@ service cloud.firestore {
           // Forbid users from escalating their own privilege to admin unless they are the official bootstrap email
           request.resource.data.role == "customer" || 
           request.resource.data.email == "playbookstudio76@gmail.com" ||
+          request.resource.data.email == "sohansahustudy@gmail.com" ||
           (resource != null && resource.data.role == request.resource.data.role)
         )
       ) || isAdmin();
@@ -58,6 +59,49 @@ service cloud.firestore {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
+    }
+
+    // Settings Collection (WhatsApp, Social Links, Global config)
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Banners Collection
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Coupons Collection
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Announcements Collection (Floating Announcement Bars)
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Team Members Collection
+    match /team_members/{memberId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Newsletter / Merch Mail Signup Collection
+    match /newsletter_emails/{emailId} {
+      allow read: if isAdmin();
+      allow create, update: if true;
+      allow delete: if isAdmin();
+    }
+
+    // Wallets Collection
+    match /wallets/{walletId} {
+      allow read: if isSignedIn() && (request.auth.uid == walletId || isAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == walletId || isAdmin());
     }
   }
 }

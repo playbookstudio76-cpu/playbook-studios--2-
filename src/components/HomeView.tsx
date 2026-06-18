@@ -27,7 +27,7 @@ export default function HomeView({ products, onNavigate }: HomeViewProps) {
         <div 
           className="absolute inset-0 bg-cover bg-center transition-transform duration-[4000ms] hover:scale-105"
           style={{ 
-            backgroundImage: `url('https://res.cloudinary.com/df4qsb2lr/image/upload/v1781776551/Gemini_Generated_Image_8uxw1y8uxw1y8uxw_1_jezgwq.png?q=80&w=1520&auto=format&fit=crop')` 
+            backgroundImage: `url('https://images.unsplash.com/photo-1562157873-818bc0726f68?q=80&w=1520&auto=format&fit=crop')` 
           }}
         />
         {/* Soft layout filter overlay */}
