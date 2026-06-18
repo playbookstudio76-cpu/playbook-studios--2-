@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   BarChart, 
   Layers, 
@@ -29,7 +29,7 @@ import {
   Lock,
   ThumbsUp
 } from 'lucide-react';
-import { Product, Order, UserProfile, Category, Coupon, FloatingBanner, AnnouncementBar, SocialConfig, WhatsAppConfig, TeamMember, NewsletterEmail, UserWallet } from '../types';
+import { Product, Order, UserProfile, Category, Coupon, FloatingBanner, AnnouncementBar, SocialConfig, WhatsAppConfig, TeamMember, NewsletterEmail, UserWallet, StoreConfig } from '../types';
 import { 
   getCurrentUser,
   getAllAnnouncements, saveAnnouncement, deleteAnnouncement,
@@ -39,7 +39,8 @@ import {
   getAllCoupons, saveCoupon, deleteCoupon,
   getAllTeamMembers, saveTeamMember, deleteTeamMember,
   getAllNewsletterEmails, deleteNewsletterEmail, addNewsletterEmail,
-  getAllWallets, saveWalletRaw, updateUserWallet
+  getAllWallets, saveWalletRaw, updateUserWallet,
+  getStoreConfig, saveStoreConfig
 } from '../storage';
 
 interface AdminDashboardProps {
@@ -51,7 +52,7 @@ interface AdminDashboardProps {
   onUpdateProduct: (id: string, updated: Partial<Product>) => Promise<void>;
   onDeleteProduct: (id: string) => Promise<void>;
   onUpdateOrderStatus: (orderId: string, status: Order['status']) => void;
-  onAddCategory: (name: string) => Promise<void>;
+  onAddCategory: (name: string, imageUrl?: string) => Promise<void>;
 }
 
 export default function AdminDashboard({
@@ -81,6 +82,7 @@ export default function AdminDashboard({
     | 'announcements'
     | 'team_members'
     | 'wallets'
+    | 'store_config'
   >('metrics');
 
   // Product modal / forms trigger
@@ -92,6 +94,21 @@ export default function AdminDashboard({
   // New Category trigger
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCatName, setNewCatName] = useState('');
+  const [newCatImageUrl, setNewCatImageUrl] = useState('');
+
+  // Layout branding configuration
+  const [layoutHeroUrl, setLayoutHeroUrl] = useState('');
+  const [layoutAuthUrl, setLayoutAuthUrl] = useState('');
+  const [isSavingLayout, setIsSavingLayout] = useState(false);
+
+  // Load Layout Configuration setting
+  useEffect(() => {
+    const config = getStoreConfig();
+    if (config) {
+      setLayoutHeroUrl(config.heroImageUrl || '');
+      setLayoutAuthUrl(config.authImageUrl || '');
+    }
+  }, []);
 
   // Form Field parameters for product creation / editing
   const [formName, setFormName] = useState('');
@@ -451,8 +468,9 @@ The Playbook Studios Atelier Team`);
     if (!newCatName.trim()) return;
     setIsSavingCloud(true);
     try {
-      await onAddCategory(newCatName.trim());
+      await onAddCategory(newCatName.trim(), newCatImageUrl.trim() || undefined);
       setNewCatName('');
+      setNewCatImageUrl('');
       setIsAddingCategory(false);
       alert('🎉 CONFIRMATION: New category has been successfully synchronized to Firestore!');
     } catch (err: any) {
@@ -547,6 +565,58 @@ The Playbook Studios Atelier Team`);
                   className="bg-zinc-50 border border-outline-variant p-2 w-full text-xs focus:outline-none focus:border-primary rounded-none"
                 />
               </div>
+              <div>
+                <label className="font-label-caps text-[9px] text-secondary tracking-wider block mb-1">Category Image (Cloudinary or Direct URL)</label>
+                <input
+                  type="text"
+                  value={newCatImageUrl}
+                  onChange={(e) => setNewCatImageUrl(e.target.value)}
+                  placeholder="Paste image link or upload below..."
+                  className="bg-zinc-50 border border-outline-variant p-2 w-full text-xs focus:outline-none focus:border-primary rounded-none mb-2"
+                />
+                
+                <div className="border border-dashed border-zinc-300 p-4 bg-zinc-50 text-center hover:bg-zinc-100 transition duration-300">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="cat-image-modal-uploader"
+                    className="hidden"
+                    disabled={isSavingCloud}
+                    onChange={async (e) => {
+                      const files = e.target.files;
+                      if (!files || files.length === 0) return;
+                      setIsSavingCloud(true);
+                      try {
+                        const file = files[0];
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('upload_preset', cloudinaryPreset);
+                        formData.append('cloud_name', 'df4qsb2lr');
+                        
+                        const response = await fetch(
+                          `https://api.cloudinary.com/v1_1/df4qsb2lr/image/upload`,
+                          { method: 'POST', body: formData }
+                        );
+                        if (!response.ok) {
+                          throw new Error('Upload failed. Status: ' + response.status);
+                        }
+                        const data = await response.json();
+                        if (data.secure_url) {
+                          setNewCatImageUrl(data.secure_url);
+                          alert('🎉 Category image uploaded to Cloudinary successfully!');
+                        }
+                      } catch (err: any) {
+                        alert('Cloudinary upload failure: ' + (err.message || err));
+                      } finally {
+                        setIsSavingCloud(false);
+                      }
+                    }}
+                  />
+                  <label htmlFor="cat-image-modal-uploader" className="cursor-pointer text-[10px] font-mono uppercase tracking-widest text-[#5d5f5f] font-semibold hover:text-black block">
+                    {isSavingCloud ? "⚡ Processing Upload..." : "↑ Upload File via Cloudinary"}
+                  </label>
+                </div>
+              </div>
               <div className="flex justify-end space-x-2.5 pt-2">
                 <button
                   type="submit"
@@ -582,7 +652,8 @@ The Playbook Studios Atelier Team`);
           { id: 'whatsapp', name: 'WhatsApp', icon: <Smartphone className="w-3.5 h-3.5" /> },
           { id: 'merch_mail', name: 'Merch Mail', icon: <Mail className="w-3.5 h-3.5" /> },
           { id: 'team_members', name: 'Team', icon: <Users className="w-3.5 h-3.5" /> },
-          { id: 'wallets', name: 'Wallets', icon: <Coins className="w-3.5 h-3.5" /> }
+          { id: 'wallets', name: 'Wallets', icon: <Coins className="w-3.5 h-3.5" /> },
+          { id: 'store_config', name: 'Layout Style', icon: <Sliders className="w-3.5 h-3.5" /> }
         ].map(tb => (
           <button
             key={tb.id}
@@ -1339,14 +1410,7 @@ The Playbook Studios Atelier Team`);
               <p className="font-body-md text-xs text-secondary mt-1">Classify and segment your streetwear products index directory.</p>
             </div>
             <button
-              onClick={() => {
-                const name = prompt("Enter new category name:");
-                if (name && name.trim()) {
-                  onAddCategory(name.trim()).then(() => {
-                    alert("Category added successfully!");
-                  });
-                }
-              }}
+              onClick={() => setIsAddingCategory(true)}
               className="bg-primary text-on-primary font-button-text text-xs uppercase px-5 py-3 tracking-widest hover:opacity-95 transition"
             >
               + Create Category
@@ -1358,10 +1422,26 @@ The Playbook Studios Atelier Team`);
               const count = products.filter(p => p.category.toLowerCase() === cat.name.toLowerCase() || p.category.toLowerCase() === cat.id).length;
               return (
                 <div key={cat.id} className="border border-outline-variant p-6 bg-white space-y-4 flex flex-col justify-between">
-                  <div className="space-y-1">
-                    <span className="font-mono text-[9px] text-zinc-400 uppercase tracking-widest">ID: {cat.id}</span>
-                    <h3 className="font-display-lg text-lg font-bold text-primary uppercase">{cat.name}</h3>
-                    <p className="font-mono text-xs text-secondary">{count} Active Product(s)</p>
+                  <div className="space-y-3">
+                    {cat.imageUrl ? (
+                      <div className="w-full aspect-[2/1] overflow-hidden bg-zinc-100 border border-outline-variant">
+                        <img 
+                          src={cat.imageUrl} 
+                          alt={cat.name} 
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover object-center" 
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-full aspect-[2/1] bg-zinc-50 border border-dashed border-outline-variant flex items-center justify-center">
+                        <span className="font-mono text-[9px] text-zinc-400 uppercase tracking-widest">NO IMAGE ASSIGNED</span>
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      <span className="font-mono text-[9px] text-zinc-400 uppercase tracking-widest block">ID: {cat.id}</span>
+                      <h3 className="font-display-lg text-lg font-bold text-primary uppercase">{cat.name}</h3>
+                      <p className="font-mono text-xs text-secondary">{count} Active Product(s)</p>
+                    </div>
                   </div>
                   <div className="pt-2">
                     <button
@@ -2598,6 +2678,191 @@ The Playbook Studios Atelier Team`);
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 10. LANDING HOMEPAGE HERO BANNER & AUTH SIDE BAR BACKDROP CONFIGURATION PANEL */}
+      {activeAdminTab === 'store_config' && (
+        <div className="space-y-8 animate-fade-in font-sans">
+          <div className="border-b border-outline-variant pb-4">
+            <h1 className="font-display-lg text-2xl tracking-tight text-primary uppercase font-medium">Layout Brand & Cloudinary Setup</h1>
+            <p className="font-body-md text-xs text-secondary mt-1">Configure your streetwear lookbook banners, auth panel side backdrops, and customize Cloudinary keys.</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            {/* Box 1: Store Style Configuration settings */}
+            <div className="border border-outline-variant p-6 bg-white space-y-6">
+              <h3 className="font-label-caps text-xs font-bold uppercase tracking-wider text-primary border-b border-outline-variant pb-2">Hero & Auth Visuals</h3>
+              
+              {/* Hero Banner field */}
+              <div className="space-y-2">
+                <label className="font-mono text-[10px] uppercase text-secondary block font-bold">Homepage Hero Image Background (Cloudinary URL or Direct URL)</label>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={layoutHeroUrl}
+                    onChange={(e) => setLayoutHeroUrl(e.target.value)}
+                    placeholder="https://images.unsplash.com/photo-..."
+                    className="bg-zinc-50 border border-outline-variant p-2 w-full text-xs focus:outline-none focus:border-primary font-mono"
+                  />
+                </div>
+                
+                {/* Cloudinary File Drop Zone for Hero Banner background */}
+                <div className="border border-dashed border-zinc-300 p-4 bg-zinc-50 text-center hover:bg-zinc-100 transition duration-300">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="hero-image-uploader-element"
+                    className="hidden"
+                    disabled={isSavingLayout}
+                    onChange={async (e) => {
+                      const files = e.target.files;
+                      if (!files || files.length === 0) return;
+                      setIsSavingLayout(true);
+                      try {
+                        const file = files[0];
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('upload_preset', cloudinaryPreset);
+                        formData.append('cloud_name', 'df4qsb2lr');
+                        
+                        const response = await fetch(
+                          `https://api.cloudinary.com/v1_1/df4qsb2lr/image/upload`,
+                          { method: 'POST', body: formData }
+                        );
+                        if (!response.ok) {
+                          throw new Error('Upload failed. Status: ' + response.status);
+                        }
+                        const data = await response.json();
+                        if (data.secure_url) {
+                          setLayoutHeroUrl(data.secure_url);
+                          alert('🎉 Homepage Hero background image successfully uploaded to Cloudinary!');
+                        }
+                      } catch (err: any) {
+                        alert('Cloudinary upload failure: ' + (err.message || err));
+                      } finally {
+                        setIsSavingLayout(false);
+                      }
+                    }}
+                  />
+                  <label htmlFor="hero-image-uploader-element" className="cursor-pointer text-[10px] font-mono uppercase tracking-widest text-[#5d5f5f] font-semibold hover:text-black block">
+                    {isSavingLayout ? "⏳ Uploading..." : "↑ Upload Homepage Hero via Cloudinary"}
+                  </label>
+                </div>
+              </div>
+
+              {/* Auth Backdrop Background field */}
+              <div className="space-y-2">
+                <label className="font-mono text-[10px] uppercase text-secondary block font-bold">Authentication Page Sidebar Image (Cloudinary URL or Direct URL)</label>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={layoutAuthUrl}
+                    onChange={(e) => setLayoutAuthUrl(e.target.value)}
+                    placeholder="https://images.unsplash.com/photo-..."
+                    className="bg-zinc-50 border border-outline-variant p-2 w-full text-xs focus:outline-none focus:border-primary font-mono"
+                  />
+                </div>
+                
+                {/* Cloudinary File Drop Zone for Auth Backdrop banner background */}
+                <div className="border border-dashed border-zinc-300 p-4 bg-zinc-50 text-center hover:bg-zinc-100 transition duration-300">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="auth-image-uploader-element"
+                    className="hidden"
+                    disabled={isSavingLayout}
+                    onChange={async (e) => {
+                      const files = e.target.files;
+                      if (!files || files.length === 0) return;
+                      setIsSavingLayout(true);
+                      try {
+                        const file = files[0];
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('upload_preset', cloudinaryPreset);
+                        formData.append('cloud_name', 'df4qsb2lr');
+                        
+                        const response = await fetch(
+                          `https://api.cloudinary.com/v1_1/df4qsb2lr/image/upload`,
+                          { method: 'POST', body: formData }
+                        );
+                        if (!response.ok) {
+                          throw new Error('Upload failed. Status: ' + response.status);
+                        }
+                        const data = await response.json();
+                        if (data.secure_url) {
+                          setLayoutAuthUrl(data.secure_url);
+                          alert('🎉 Authentication side image successfully uploaded to Cloudinary!');
+                        }
+                      } catch (err: any) {
+                        alert('Cloudinary upload failure: ' + (err.message || err));
+                      } finally {
+                        setIsSavingLayout(false);
+                      }
+                    }}
+                  />
+                  <label htmlFor="auth-image-uploader-element" className="cursor-pointer text-[10px] font-mono uppercase tracking-widest text-[#5d5f5f] font-semibold hover:text-black block">
+                    {isSavingLayout ? "⏳ Uploading..." : "↑ Upload Auth Sidebar via Cloudinary"}
+                  </label>
+                </div>
+              </div>
+
+              {/* Save layout changes action */}
+              <div className="pt-4 border-t border-outline-variant">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsSavingLayout(true);
+                    try {
+                      await saveStoreConfig({
+                        id: 'store_config',
+                        heroImageUrl: layoutHeroUrl.trim(),
+                        authImageUrl: layoutAuthUrl.trim()
+                      });
+                      alert('🎉 Layout Brand branding styles saved and synchronized to Firestore settings!');
+                    } catch (err: any) {
+                      alert('Error persisting config: ' + err);
+                    } finally {
+                      setIsSavingLayout(false);
+                    }
+                  }}
+                  disabled={isSavingLayout}
+                  className="w-full bg-primary text-on-primary py-3 font-button-text text-xs uppercase tracking-widest hover:opacity-95 transition rounded-none font-bold"
+                >
+                  {isSavingLayout ? "PERSISTING LAYOUT..." : "Synchronize Visuals to Firestore"}
+                </button>
+              </div>
+            </div>
+
+            {/* Box 2: Cloudinary Setup Info Guide */}
+            <div className="border border-outline-variant p-6 bg-surface-container space-y-6 font-mono text-xs text-secondary">
+              <h3 className="font-label-caps text-xs font-bold uppercase tracking-wider text-primary font-sans border-b border-outline pb-2">Technical Core Connection Guide</h3>
+              
+              <div className="space-y-4 font-sans leading-relaxed text-zinc-600">
+                <p>The Playbook Admin workspace uses Cloudinary's fast and reliable direct image ingestion API to safely parse mockups, apparel garments, categories and brand slides.</p>
+                
+                <div className="bg-white p-4 border border-outline-variant font-mono text-[11px] space-y-2">
+                  <span className="font-bold uppercase text-[9px] text-[#5d5f5f] block">Currently Configured Global Cloudinary Settings</span>
+                  <p><strong>Cloud Name:</strong> df4qsb2lr</p>
+                  <p><strong>Upload Ingress Preset:</strong> ml_default</p>
+                  <p className="text-[10px] text-zinc-400 mt-2 italic">* Using environment-integrated enterprise storage buckets. File drops will execute immediately.</p>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <h4 className="font-bold text-primary">How to obtain your own credentials:</h4>
+                  <ul className="list-decimal pl-4 space-y-1 text-[11px]">
+                    <li>Sign up for a free developer tier at <a href="https://cloudinary.com" target="_blank" rel="noreferrer" className="underline text-primary font-bold">Cloudinary.com</a></li>
+                    <li>Copy your unique <strong>Cloud Name</strong> from the account dashboard console</li>
+                    <li>In Cloudinary settings, go to "Upload" tab and create a new <strong>Unsigned Upload Preset</strong> (enable active incoming uploads)</li>
+                    <li>This workspace maps upload files cleanly to direct content CDNs worldwide in Real Time</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

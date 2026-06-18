@@ -86,6 +86,7 @@ export interface Order {
 export interface Category {
   id: string;
   name: string;
+  imageUrl?: string;
   createdAt: string;
 }
 
@@ -135,6 +136,12 @@ export interface WhatsAppConfig {
   phoneNumber: string;
   isEnabled: boolean;
   prefilledMessageText?: string;
+}
+
+export interface StoreConfig {
+  id: string; // 'store_config'
+  heroImageUrl?: string;
+  authImageUrl?: string;
 }
 
 export interface TeamMember {

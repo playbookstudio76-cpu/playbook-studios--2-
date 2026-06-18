@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { UserProfile } from '../types';
+import { UserProfile, StoreConfig } from '../types';
 import { loginUser, signupUser } from '../storage';
 
 interface AuthViewProps {
   onAuthSuccess: (user: UserProfile) => void;
   onNavigate: (view: string) => void;
+  storeConfig?: StoreConfig | null;
 }
 
-export default function AuthView({ onAuthSuccess, onNavigate }: AuthViewProps) {
+export default function AuthView({ onAuthSuccess, onNavigate, storeConfig }: AuthViewProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -73,7 +74,7 @@ export default function AuthView({ onAuthSuccess, onNavigate }: AuthViewProps) {
         <div 
           className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 hover:scale-105"
           style={{ 
-            backgroundImage: `url('https://res.cloudinary.com/df4qsb2lr/image/upload/v1781776551/Gemini_Generated_Image_rk291rk291rk291r_1_ec9hin.png?q=80&w=800&auto=format&fit=crop')` 
+            backgroundImage: `url('${storeConfig?.authImageUrl || 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=800&auto=format&fit=crop'}')` 
           }}
         />
         {/* Subtle architectural tint overlay */}

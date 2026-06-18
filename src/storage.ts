@@ -13,7 +13,8 @@ import {
   TeamMember,
   NewsletterEmail,
   UserWallet,
-  WalletTransaction
+  WalletTransaction,
+  StoreConfig
 } from './types';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from './mockData';
 import { db, auth } from './firebase';
@@ -50,6 +51,7 @@ const KEYS = {
   WALLETS: 'pb_wallets_db',
   SOCIAL_LINKS: 'pb_social_links_db',
   WHATSAPP_CONFIG: 'pb_whatsapp_config_db',
+  STORE_CONFIG: 'pb_store_config_db',
 };
 
 export function cleanFirestoreData<T extends object>(obj: T): T {
@@ -288,6 +290,8 @@ export function startFirebaseSync(onUpdate: () => void) {
           localStorage.setItem(KEYS.SOCIAL_LINKS, JSON.stringify({ id, ...data }));
         } else if (id === 'whatsapp_config') {
           localStorage.setItem(KEYS.WHATSAPP_CONFIG, JSON.stringify({ id, ...data }));
+        } else if (id === 'store_config') {
+          localStorage.setItem(KEYS.STORE_CONFIG, JSON.stringify({ id, ...data }));
         }
       });
       onUpdate();
@@ -681,11 +685,13 @@ export function getAllCategories(): Category[] {
   return list ? JSON.parse(list) : [];
 }
 
-export async function addCategory(name: string): Promise<Category> {
+export async function addCategory(name: string, imageUrl?: string): Promise<Category> {
   const cats = getAllCategories();
+  const idValue = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
   const newCat: Category = {
-    id: name.toLowerCase().replace(/\s+/g, '-'),
+    id: idValue || "cat-" + Math.random().toString(36).substr(2, 9),
     name,
+    imageUrl,
     createdAt: new Date().toISOString()
   };
   cats.push(newCat);
@@ -1289,5 +1295,30 @@ export function updateUserWallet(userId: string, changeAmount: number, descripti
   });
   
   return updatedWallet;
+}
+
+// ---------------- STORE STYLE/LAYOUT CONFIGURATION SERVICE ----------------
+
+export function getStoreConfig(): StoreConfig {
+  const data = localStorage.getItem(KEYS.STORE_CONFIG);
+  if (!data) {
+    const defaultConfig: StoreConfig = {
+      id: 'store_config',
+      heroImageUrl: 'https://images.unsplash.com/photo-1562157873-818bc0726f68?q=80&w=1520&auto=format&fit=crop',
+      authImageUrl: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=800&auto=format&fit=crop'
+    };
+    localStorage.setItem(KEYS.STORE_CONFIG, JSON.stringify(defaultConfig));
+    return defaultConfig;
+  }
+  return JSON.parse(data);
+}
+
+export async function saveStoreConfig(config: StoreConfig): Promise<void> {
+  localStorage.setItem(KEYS.STORE_CONFIG, JSON.stringify(config));
+  try {
+    await setDoc(doc(db, 'settings', 'store_config'), cleanFirestoreData(config));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'settings/store_config');
+  }
 }
 

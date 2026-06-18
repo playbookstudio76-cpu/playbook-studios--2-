@@ -8,7 +8,7 @@ import ProductDetailView from './components/ProductDetailView';
 import CartDrawer from './components/CartDrawer';
 import CustomerDashboard from './components/CustomerDashboard';
 import AdminDashboard from './components/AdminDashboard';
-import { UserProfile, Product, Order, CartItem, Category, AnnouncementBar, FloatingBanner, SocialConfig } from './types';
+import { UserProfile, Product, Order, CartItem, Category, AnnouncementBar, FloatingBanner, SocialConfig, StoreConfig } from './types';
 import { 
   getCurrentUser, 
   logoutUser, 
@@ -28,7 +28,8 @@ import {
   startFirebaseSync,
   getAllAnnouncements,
   getAllBanners,
-  getSocialConfig
+  getSocialConfig,
+  getStoreConfig
 } from './storage';
 
 export default function App() {
@@ -45,6 +46,7 @@ export default function App() {
   const [announcements, setAnnouncements] = useState<AnnouncementBar[]>([]);
   const [banners, setBanners] = useState<FloatingBanner[]>([]);
   const [socialConfig, setSocialConfig] = useState<SocialConfig | null>(null);
+  const [storeConfig, setStoreConfig] = useState<StoreConfig | null>(null);
   
   // Cart state
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -63,6 +65,7 @@ export default function App() {
     setAnnouncements(getAllAnnouncements());
     setBanners(getAllBanners());
     setSocialConfig(getSocialConfig());
+    setStoreConfig(getStoreConfig());
 
     // Connect to real-time remote Firebase tables
     const unsubSync = startFirebaseSync(() => {
@@ -73,6 +76,7 @@ export default function App() {
       setAnnouncements(getAllAnnouncements());
       setBanners(getAllBanners());
       setSocialConfig(getSocialConfig());
+      setStoreConfig(getStoreConfig());
     });
 
     // Resolve Hash-based or basic path navigation for dynamic iframe refresh resilience
@@ -342,8 +346,8 @@ export default function App() {
     setOrders(getAllOrders());
   };
 
-  const handleAdminAddCategory = async (name: string) => {
-    await addCategory(name);
+  const handleAdminAddCategory = async (name: string, imageUrl?: string) => {
+    await addCategory(name, imageUrl);
     setCategories(getAllCategories());
   };
 
@@ -401,6 +405,8 @@ export default function App() {
             products={products} 
             onNavigate={handleNavigate} 
             socialConfig={socialConfig}
+            categories={categories}
+            storeConfig={storeConfig}
           />
         )}
 
@@ -437,6 +443,7 @@ export default function App() {
           <AuthView
             onAuthSuccess={handleAuthSuccess}
             onNavigate={handleNavigate}
+            storeConfig={storeConfig}
           />
         )}
 

@@ -1,13 +1,15 @@
 import { ArrowRight, Instagram } from 'lucide-react';
-import { Product, SocialConfig } from '../types';
+import { Product, SocialConfig, Category, StoreConfig } from '../types';
 
 interface HomeViewProps {
   products: Product[];
   onNavigate: (view: string, props?: any) => void;
   socialConfig?: SocialConfig | null;
+  categories: Category[];
+  storeConfig?: StoreConfig | null;
 }
 
-export default function HomeView({ products, onNavigate, socialConfig }: HomeViewProps) {
+export default function HomeView({ products, onNavigate, socialConfig, categories, storeConfig }: HomeViewProps) {
   const sampleProductIds = ['pb-001', 'pb-002', 'pb-003', 'pb-004', 'pb-005', 'pb-006', 'pb-007', 'pb-008', 'pb-009', 'pb-010'];
   // Filter out any default sample/preset products so that we only showcase newly added ones
   const userProducts = products.filter(p => !sampleProductIds.includes(p.id));
@@ -28,7 +30,7 @@ export default function HomeView({ products, onNavigate, socialConfig }: HomeVie
         <div 
           className="absolute inset-0 bg-cover bg-center transition-transform duration-[4000ms] hover:scale-105"
           style={{ 
-            backgroundImage: `url('https://res.cloudinary.com/df4qsb2lr/image/upload/v1781776551/Gemini_Generated_Image_8uxw1y8uxw1y8uxw_1_jezgwq.png?q=80&w=1520&auto=format&fit=crop')` 
+            backgroundImage: `url('${storeConfig?.heroImageUrl || 'https://images.unsplash.com/photo-1562157873-818bc0726f68?q=80&w=1520&auto=format&fit=crop'}')` 
           }}
         />
         {/* Soft layout filter overlay */}
@@ -211,61 +213,61 @@ export default function HomeView({ products, onNavigate, socialConfig }: HomeVie
           Shop Categories
         </h3>
         
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          {[
-            { name: 'Outerwear', id: 'outerwear' },
-            { name: 'Tops', id: 'tops' },
-            { name: 'Bottoms', id: 'bottoms' },
-            { name: 'Accessories', id: 'accessories' }
-          ].map(cat => {
-            // Find first custom product in this category
-            const categoryProduct = userProducts.find(
-              p => p.category.toLowerCase() === cat.id
-            );
-            const catImg = categoryProduct ? categoryProduct.images[0] : null;
+        {categories.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {categories.map(cat => {
+              // Priority is category's custom imageUrl, fallback is products in this category
+              const catImg = cat.imageUrl || userProducts.find(
+                p => p.category.toLowerCase() === cat.id.toLowerCase() || p.category.toLowerCase() === cat.name.toLowerCase()
+              )?.images[0] || null;
 
-            return (
-              <div 
-                key={cat.id}
-                onClick={() => onNavigate('shop', { category: cat.id })}
-                className="relative aspect-[4/5] overflow-hidden group cursor-pointer bg-zinc-50 border border-outline-variant hover:border-zinc-400 transition-all flex flex-col justify-between p-6 rounded-none"
-              >
-                {catImg ? (
-                  <>
-                    <img 
-                      src={catImg} 
-                      alt={cat.name} 
-                      referrerPolicy="no-referrer"
-                      className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 opacity-90 z-0"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-95 group-hover:opacity-100 transition-opacity z-10" />
-                    <div className="absolute bottom-6 left-6 text-white text-left z-20">
-                      <span className="font-label-caps text-[9px] tracking-widest text-zinc-300 block uppercase font-mono">Category</span>
-                      <span className="font-headline-sm text-lg md:text-xl font-semibold tracking-tight mt-1 block uppercase">
-                        {cat.name}
-                      </span>
+              return (
+                <div 
+                  key={cat.id}
+                  onClick={() => onNavigate('shop', { category: cat.id })}
+                  className="relative aspect-[4/5] overflow-hidden group cursor-pointer bg-zinc-50 border border-outline-variant hover:border-zinc-400 transition-all flex flex-col justify-between p-6 rounded-none"
+                >
+                  {catImg ? (
+                    <>
+                      <img 
+                        src={catImg} 
+                        alt={cat.name} 
+                        referrerPolicy="no-referrer"
+                        className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 opacity-90 z-0"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-95 group-hover:opacity-100 transition-opacity z-10" />
+                      <div className="absolute bottom-6 left-6 text-white text-left z-20">
+                        <span className="font-label-caps text-[9px] tracking-widest text-zinc-300 block uppercase font-mono">Category</span>
+                        <span className="font-headline-sm text-lg md:text-xl font-semibold tracking-tight mt-1 block uppercase font-bold">
+                          {cat.name}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col justify-between h-full w-full z-10">
+                      <div>
+                        <span className="font-mono text-[9px] tracking-widest text-zinc-400 block uppercase font-semibold">EMPTY ARCHIVE</span>
+                      </div>
+                      <div className="text-left">
+                        <span className="font-label-caps text-[9px] tracking-widest text-[#5d5f5f] block uppercase font-mono">Category</span>
+                        <span className="font-headline-sm text-base md:text-lg font-semibold tracking-tight mt-1 block text-primary uppercase font-bold">
+                          {cat.name}
+                        </span>
+                        <span className="mt-2 text-[9px] font-semibold text-zinc-400 group-hover:text-primary transition-colors font-mono tracking-widest inline-block uppercase">
+                          ADD PRODUCTS +
+                        </span>
+                      </div>
                     </div>
-                  </>
-                ) : (
-                  <div className="flex flex-col justify-between h-full w-full z-10">
-                    <div>
-                      <span className="font-mono text-[9px] tracking-widest text-zinc-400 block uppercase font-semibold">EMPTY ARCHIVE</span>
-                    </div>
-                    <div className="text-left">
-                      <span className="font-label-caps text-[9px] tracking-widest text-[#5d5f5f] block uppercase font-mono">Category</span>
-                      <span className="font-headline-sm text-base md:text-lg font-semibold tracking-tight mt-1 block text-primary uppercase">
-                        {cat.name}
-                      </span>
-                      <span className="mt-2 text-[9px] font-semibold text-zinc-400 group-hover:text-primary transition-colors font-mono tracking-widest inline-block uppercase">
-                        ADD PRODUCTS +
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-16 border border-dashed border-outline-variant bg-surface-container-low text-secondary font-mono text-xs">
+            NO ACTIVE SECTIONS SEEDED // SETUP CUSTOM LOOK CATEGORIES FROM ADMIN PANEL
+          </div>
+        )}
       </section>
 
       {/* 5B. THE PLAYBOOK ATELIER LIVE FEED / INSTAGRAM PORTAL */}
