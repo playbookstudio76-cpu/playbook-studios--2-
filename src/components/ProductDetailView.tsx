@@ -52,23 +52,48 @@ export default function ProductDetailView({
     }
   }, [currentUser]);
 
+  // Find currently active color variant if any
+  const activeVariant = useMemo(() => {
+    if (!product.variants || product.variants.length === 0) return null;
+    return product.variants.find(v => v.colorHex.toLowerCase() === selectedColor.toLowerCase()) || null;
+  }, [product.variants, selectedColor]);
+
+  // Determine current out of stock status
+  const isOutOfStock = useMemo(() => {
+    if (activeVariant) {
+      return activeVariant.stockStatus === 'Out of stock';
+    }
+    return product.stock === 0;
+  }, [activeVariant, product.stock]);
+
+  // Automatically reset active image index when selected color changes
+  useEffect(() => {
+    setActiveImageIdx(0);
+  }, [selectedColor]);
+
   // Multi-image list setup with Color-Specific Image prepend option
   const galleryImages = useMemo(() => {
     let imagesList = [...(product.images || [])];
+    
+    // Check first if active variant has primary image
+    if (activeVariant && activeVariant.primaryImage) {
+      imagesList = [activeVariant.primaryImage, ...(activeVariant.galleryImages || []), ...imagesList.filter(img => img !== activeVariant.primaryImage)];
+    } else {
+      // Fallback: Check if currently selected color has a mapped image
+      const matchingColorImg = product.colorImages?.[selectedColor];
+      if (matchingColorImg) {
+        // Prepend the matching color image if it's not already the first element
+        if (imagesList[0] !== matchingColorImg) {
+          imagesList = [matchingColorImg, ...imagesList.filter(img => img !== matchingColorImg)];
+        }
+      }
+    }
+
     if (imagesList.length === 0) {
       imagesList = ['https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?q=80&w=600&auto=format&fit=crop'];
     }
-    
-    // Check if currently selected color has a mapped image
-    const matchingColorImg = product.colorImages?.[selectedColor];
-    if (matchingColorImg) {
-      // Prepend the matching color image if it's not already the first element
-      if (imagesList[0] !== matchingColorImg) {
-        imagesList = [matchingColorImg, ...imagesList.filter(img => img !== matchingColorImg)];
-      }
-    }
     return imagesList;
-  }, [product, selectedColor]);
+  }, [product, selectedColor, activeVariant]);
 
   // Load shipping tiers and delivery zones from cache for real-time calculation
   const tiers = useMemo(() => {
@@ -137,13 +162,21 @@ export default function ProductDetailView({
     return `${minStr} - ${maxStr}`;
   }, [deliveryEstimation]);
 
+  const displayedPrice = useMemo(() => {
+    if (activeVariant && activeVariant.price) {
+      return activeVariant.price;
+    }
+    return product.discountPrice || product.price;
+  }, [activeVariant, product.discountPrice, product.price]);
+
   // Handle increment/decrement of qty
   const handleQtyChange = (type: 'inc' | 'dec') => {
     if (type === 'inc') {
-      if (quantity < product.stock) {
+      const stockLimit = activeVariant ? 99 : product.stock;
+      if (quantity < stockLimit) {
         setQuantity(q => q + 1);
       } else {
-        showToast(`Only ${product.stock} items remaining in our studio inventory.`, 'info');
+        showToast(`Only ${stockLimit} items remaining in our studio inventory.`, 'info');
       }
     } else {
       setQuantity(q => Math.max(1, q - 1));
@@ -151,7 +184,7 @@ export default function ProductDetailView({
   };
 
   const handleAdd = () => {
-    if (product.stock === 0) {
+    if (isOutOfStock) {
       showToast('This element is currently out of stock.', 'error');
       return;
     }
@@ -159,18 +192,18 @@ export default function ProductDetailView({
       {
         productId: product.id,
         name: product.name,
-        price: product.discountPrice || product.price,
+        price: displayedPrice,
         image: galleryImages[0],
         size: selectedSize,
-        color: selectedColorHexName(selectedColor),
-        stock: product.stock,
+        color: activeVariant ? activeVariant.colorName : selectedColorHexName(selectedColor),
+        stock: activeVariant ? 99 : product.stock,
       },
       quantity
     );
   };
 
   const handleBuyNow = () => {
-    if (product.stock === 0) {
+    if (isOutOfStock) {
       showToast('This element is currently out of stock.', 'error');
       return;
     }
@@ -196,15 +229,15 @@ export default function ProductDetailView({
     onQuickCheckoutViaWhatsApp(
       {
         productId: product.id,
-        name: product.name,
-        price: product.discountPrice || product.price,
+        name: product.name + (activeVariant ? ` (${activeVariant.colorName})` : ''),
+        price: displayedPrice,
         image: galleryImages[0],
         size: selectedSize,
-        color: selectedColorHexName(selectedColor),
-        stock: product.stock,
+        color: activeVariant ? activeVariant.colorName : selectedColorHexName(selectedColor),
+        stock: activeVariant ? 99 : product.stock,
       },
       selectedSize,
-      selectedColorHexName(selectedColor),
+      activeVariant ? activeVariant.colorName : selectedColorHexName(selectedColor),
       quantity,
       compiledAddress
     );
@@ -212,6 +245,9 @@ export default function ProductDetailView({
 
   // Convert Color color Hex to descriptive string
   const selectedColorHexName = (hex: string) => {
+    if (activeVariant && activeVariant.colorHex.toLowerCase() === hex.toLowerCase() && activeVariant.colorName) {
+      return activeVariant.colorName;
+    }
     if (hex.toUpperCase() === '#0A0A0A' || hex.toUpperCase() === '#000000' || hex.toUpperCase() === '#121212') return 'Jet Black';
     if (hex.toUpperCase() === '#EAEAEA' || hex.toUpperCase() === '#FFFFFF') return 'Optic White';
     if (hex.toUpperCase() === '#5C6B73') return 'Stone Grey';
@@ -266,7 +302,7 @@ export default function ProductDetailView({
               referrerPolicy="no-referrer"
               className="w-full h-full object-contain object-center transition-transform duration-1000 hover:scale-[1.02]"
             />
-            {product.stock === 0 && (
+            {isOutOfStock && (
               <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center">
                 <span className="border-2 border-white text-white font-label-caps text-xs tracking-[0.2em] uppercase px-6 py-3">
                   SOLD OUT ARCHIVE
@@ -285,7 +321,11 @@ export default function ProductDetailView({
               {product.name}
             </h1>
             <div className="flex items-center space-x-3 mt-3 flex-wrap gap-y-2">
-              {product.discountPrice ? (
+              {activeVariant && activeVariant.price ? (
+                <span className="font-mono text-xl font-semibold text-primary">
+                  ₹{activeVariant.price.toLocaleString()}
+                </span>
+              ) : product.discountPrice ? (
                 <>
                   <span className="font-mono text-xl font-semibold text-red-500">
                     ₹{product.discountPrice.toLocaleString()}
@@ -303,6 +343,11 @@ export default function ProductDetailView({
                 </span>
               )}
             </div>
+            {activeVariant && (
+              <div className="mt-2 text-[9px] font-mono uppercase tracking-widest text-[#DDA15E]">
+                ✔ Selected Variant: {activeVariant.colorName} {activeVariant.sku ? `(SKU: ${activeVariant.sku})` : ''}
+              </div>
+            )}
           </div>
 
           {/* Core description block */}
@@ -374,7 +419,7 @@ export default function ProductDetailView({
 
             <div className="flex items-center border border-outline-variant w-[120px] justify-between h-12 bg-white">
               <button
-                disabled={quantity <= 1 || product.stock === 0}
+                disabled={quantity <= 1 || isOutOfStock}
                 onClick={() => handleQtyChange('dec')}
                 className="w-10 h-full flex items-center justify-center hover:bg-surface-container-low transition disabled:opacity-30"
               >
@@ -382,7 +427,7 @@ export default function ProductDetailView({
               </button>
               <span className="font-mono text-sm text-primary font-semibold">{quantity}</span>
               <button
-                disabled={product.stock === 0}
+                disabled={isOutOfStock}
                 onClick={() => handleQtyChange('inc')}
                 className="w-10 h-full flex items-center justify-center hover:bg-surface-container-low transition disabled:opacity-30"
               >
@@ -395,7 +440,7 @@ export default function ProductDetailView({
           <div className="space-y-3 pt-4 border-t border-outline-variant">
             <button
               onClick={handleAdd}
-              disabled={product.stock === 0}
+              disabled={isOutOfStock}
               className="w-full bg-primary text-on-primary py-4 font-label-caps text-xs tracking-[0.15em] uppercase hover:bg-opacity-90 transition active:scale-[0.99] select-none rounded-none flex items-center justify-center space-x-2 disabled:bg-on-primary-fixed-variant"
             >
               <ShoppingBag className="w-4 h-4 stroke-[2]" />
@@ -404,7 +449,7 @@ export default function ProductDetailView({
 
             <button
               onClick={handleBuyNow}
-              disabled={product.stock === 0}
+              disabled={isOutOfStock}
               className="w-full border border-primary text-primary py-4 font-label-caps text-xs tracking-[0.15em] uppercase hover:bg-surface-container-low transition active:scale-[0.99] select-none rounded-none flex items-center justify-center space-x-2"
             >
               <CreditCard className="w-4 h-4 stroke-[1.5]" />
@@ -414,7 +459,7 @@ export default function ProductDetailView({
             {/* Premium WhatsApp button (Screenshot 3) */}
             <button
               onClick={handleWhatsAppOrder}
-              disabled={product.stock === 0}
+              disabled={isOutOfStock}
               className="w-full border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-green-700 hover:text-green-800 py-4 font-label-caps text-xs tracking-[0.15em] uppercase transition active:scale-[0.99] select-none rounded-none flex items-center justify-center space-x-2 border-dashed"
             >
               {/* WhatsApp custom outline SVG */}

@@ -47,6 +47,18 @@ export interface Address {
   isDefault: boolean;
 }
 
+export interface ColorVariant {
+  id: string;
+  colorName: string;
+  colorHex: string;
+  sku?: string;
+  price?: number;
+  stockStatus: 'In stock' | 'Out of stock';
+  primaryImage: string;
+  galleryImages?: string[];
+  isDefault?: boolean;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -65,6 +77,7 @@ export interface Product {
   authenticitySection?: string;
   featured: boolean;
   colorName?: string; // e.g. "Black / Core"
+  variants?: ColorVariant[]; // Color-specific variants (Primary image, custom price, stock, SKU)
   createdAt: string;
 }
 

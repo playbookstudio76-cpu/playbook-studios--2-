@@ -29,7 +29,7 @@ import {
   Lock,
   ThumbsUp
 } from 'lucide-react';
-import { Product, Order, UserProfile, Category, Coupon, FloatingBanner, AnnouncementBar, SocialConfig, WhatsAppConfig, TeamMember, NewsletterEmail, UserWallet, StoreConfig, WalletAndProfitSettings, ShippingTier, DeliveryZone } from '../types';
+import { Product, Order, UserProfile, Category, Coupon, FloatingBanner, AnnouncementBar, SocialConfig, WhatsAppConfig, TeamMember, NewsletterEmail, UserWallet, StoreConfig, WalletAndProfitSettings, ShippingTier, DeliveryZone, ColorVariant } from '../types';
 import { 
   getCurrentUser,
   getAllAnnouncements, saveAnnouncement, deleteAnnouncement,
@@ -140,6 +140,7 @@ export default function AdminDashboard({
   const [formDetailsSection, setFormDetailsSection] = useState('');
   const [formShippingSection, setFormShippingSection] = useState('');
   const [formAuthenticitySection, setFormAuthenticitySection] = useState('');
+  const [formVariants, setFormVariants] = useState<ColorVariant[]>([]);
   
   // Cloudinary Direct Uploader states
   const [uploading, setUploading] = useState(false);
@@ -228,6 +229,73 @@ export default function AdminDashboard({
       }
     } catch (err: any) {
       alert("Color image upload failure: " + (err.message || err));
+    } finally {
+      setIsSavingCloud(false);
+    }
+  };
+
+  const handleVariantPrimaryUpload = async (e: React.ChangeEvent<HTMLInputElement>, variantId: string) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setIsSavingCloud(true);
+    try {
+      const file = files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', cloudinaryPreset);
+      formData.append('cloud_name', 'df4qsb2lr');
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/df4qsb2lr/image/upload`,
+        { method: 'POST', body: formData }
+      );
+
+      if (!response.ok) throw new Error('Upload failed.');
+      const data = await response.json();
+      if (data.secure_url) {
+        setFormVariants(prev => prev.map(v => v.id === variantId ? { ...v, primaryImage: data.secure_url } : v));
+        alert('🎉 Variant Primary photo successfully uploaded!');
+      }
+    } catch (err: any) {
+      alert("Variant primary upload error: " + (err.message || err));
+    } finally {
+      setIsSavingCloud(false);
+    }
+  };
+
+  const handleVariantGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>, variantId: string) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setIsSavingCloud(true);
+    try {
+      const file = files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', cloudinaryPreset);
+      formData.append('cloud_name', 'df4qsb2lr');
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/df4qsb2lr/image/upload`,
+        { method: 'POST', body: formData }
+      );
+
+      if (!response.ok) throw new Error('Upload failed.');
+      const data = await response.json();
+      if (data.secure_url) {
+        setFormVariants(prev => prev.map(v => {
+          if (v.id === variantId) {
+            const currentGallery = v.galleryImages || [];
+            return {
+              ...v,
+              galleryImages: [...currentGallery, data.secure_url]
+            };
+          }
+          return v;
+        }));
+        alert('🎉 Gallery photo uploaded!');
+      }
+    } catch (err: any) {
+      alert("Variant gallery upload error: " + (err.message || err));
     } finally {
       setIsSavingCloud(false);
     }
@@ -426,6 +494,7 @@ The Playbook Studios Atelier Team`);
     setFormDetailsSection(prod.detailsSection || '');
     setFormShippingSection(prod.shippingSection || '');
     setFormAuthenticitySection(prod.authenticitySection || '');
+    setFormVariants(prod.variants ? JSON.parse(JSON.stringify(prod.variants)) : []);
     setIsAddingProduct(true);
   };
 
@@ -448,6 +517,7 @@ The Playbook Studios Atelier Team`);
     setFormDetailsSection('');
     setFormShippingSection('');
     setFormAuthenticitySection('');
+    setFormVariants([]);
     setIsAddingProduct(true);
   };
 
@@ -482,6 +552,7 @@ The Playbook Studios Atelier Team`);
       detailsSection: formDetailsSection,
       shippingSection: formShippingSection,
       authenticitySection: formAuthenticitySection,
+      variants: formVariants,
     };
 
     setIsSavingCloud(true);
@@ -1267,6 +1338,313 @@ The Playbook Studios Atelier Team`);
                         Please select or add product colors above to configure color-specific cloth photos.
                       </div>
                     )}
+                  </div>
+                </div>
+
+                {/* COLOR VARIANTS MANAGEMENT PANEL - INTERACTIVITY MATCHES USER ATTACHMENT */}
+                <div className="space-y-4 border border-outline-variant p-6 bg-zinc-950 text-zinc-200 font-mono text-[10px] uppercase">
+                  <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                    <h4 className="text-[#DDA15E] font-bold tracking-wider text-sm">
+                      COLOR VARIANTS
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const hasEmpty = formVariants.some(v => !v.colorName.trim());
+                        if (hasEmpty) {
+                          alert("Please fill in the Color Name/Shade for all variants before saving.");
+                          return;
+                        }
+                        // Generate colors list and images map automatically from variants inputs
+                        const derivedColors = formVariants.map(v => v.colorHex.toUpperCase());
+                        const derivedColorImages: Record<string, string> = { ...formColorImages };
+                        formVariants.forEach(v => {
+                          if (v.primaryImage) {
+                            derivedColorImages[v.colorHex.toUpperCase()] = v.primaryImage;
+                          }
+                        });
+
+                        setFormColors(prev => {
+                          const combo = [...prev, ...derivedColors];
+                          return Array.from(new Set(combo));
+                        });
+                        setFormColorImages(derivedColorImages);
+
+                        alert("🎉 VARIANTS LOCAL SYNC SUCCESSFULLY EXECUTED: Color tags and matching product image variables are generated in this Look. Finalize changes by clicking 'UPDATE STYLING' or 'SEED NEW LOOK' below.");
+                      }}
+                      className="text-[#DDA15E] font-bold hover:underline transition uppercase tracking-widest text-[10px]"
+                    >
+                      SAVE VARIANTS
+                    </button>
+                  </div>
+                  
+                  <p className="text-zinc-500 lowercase leading-relaxed text-[10.5px]">
+                    One product, multiple colors. Each variant has its own SKU, stock, primary image, and gallery.
+                  </p>
+
+                  <div className="space-y-4.5">
+                    {formVariants.map((variant, index) => (
+                      <div key={variant.id} className="border border-zinc-800 p-4.5 bg-zinc-900/40 relative space-y-4 rounded-none">
+                        {/* Header: Set Default star + Delete bin */}
+                        <div className="flex justify-between items-center text-zinc-400">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormVariants(prev => prev.map((v, i) => ({
+                                ...v,
+                                isDefault: i === index
+                              })));
+                            }}
+                            className={`flex items-center space-x-1.5 transition text-[9px] font-bold uppercase ${
+                              variant.isDefault ? 'text-[#DDA15E]' : 'hover:text-zinc-300'
+                            }`}
+                          >
+                            <span className="text-xs">{variant.isDefault ? '★' : '☆'}</span>
+                            <span>{variant.isDefault ? 'DEFAULT VARIANT' : 'SET DEFAULT'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormVariants(prev => prev.filter(v => v.id !== variant.id));
+                            }}
+                            className="hover:text-rose-500 text-zinc-500 transition-all font-sans text-sm font-bold"
+                            title="Delete variant"
+                          >
+                            🗑
+                          </button>
+                        </div>
+
+                        {/* Input row 1 */}
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                          {/* Color Name */}
+                          <div className="space-y-1">
+                            <label className="text-zinc-400 text-[8px] font-bold block">Color Name *</label>
+                            <input
+                              type="text"
+                              value={variant.colorName}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setFormVariants(prev => prev.map(v => v.id === variant.id ? { ...v, colorName: val } : v));
+                              }}
+                              placeholder="e.g. White / Optic"
+                              required
+                              className="w-full bg-zinc-950 border border-zinc-800 p-2 text-[10px] focus:outline-none focus:border-[#DDA15E] text-white font-sans uppercase rounded-none"
+                            />
+                          </div>
+
+                          {/* Color Hex Picker */}
+                          <div className="space-y-1">
+                            <label className="text-zinc-400 text-[8px] font-bold block">Color shade (Hex)</label>
+                            <div className="flex space-x-1.5">
+                              <input
+                                type="color"
+                                value={variant.colorHex}
+                                onChange={(e) => {
+                                  let val = e.target.value.toUpperCase();
+                                  setFormVariants(prev => prev.map(v => v.id === variant.id ? { ...v, colorHex: val } : v));
+                                }}
+                                className="w-8 h-8 rounded-none border border-zinc-800 bg-transparent p-0 cursor-pointer flex-shrink-0"
+                              />
+                              <input
+                                type="text"
+                                value={variant.colorHex}
+                                onChange={(e) => {
+                                  let val = e.target.value.toUpperCase();
+                                  if (!val.startsWith('#') && val.length > 0) val = '#' + val;
+                                  setFormVariants(prev => prev.map(v => v.id === variant.id ? { ...v, colorHex: val } : v));
+                                }}
+                                placeholder="#000000"
+                                className="w-full bg-zinc-950 border border-zinc-800 p-1 text-[10px] focus:outline-none text-white font-mono"
+                              />
+                            </div>
+                          </div>
+
+                          {/* SKU */}
+                          <div className="space-y-1">
+                            <label className="text-zinc-400 text-[8px] font-bold block">SKU</label>
+                            <input
+                              type="text"
+                              value={variant.sku || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setFormVariants(prev => prev.map(v => v.id === variant.id ? { ...v, sku: val.toUpperCase() } : v));
+                              }}
+                              placeholder="SKU"
+                              className="w-full bg-zinc-950 border border-zinc-800 p-2 text-[10px] focus:outline-none focus:border-[#DDA15E] text-white font-mono uppercase rounded-none"
+                            />
+                          </div>
+
+                          {/* Price */}
+                          <div className="space-y-1">
+                            <label className="text-zinc-400 text-[8px] font-bold block">Price or</label>
+                            <input
+                              type="number"
+                              value={variant.price || ''}
+                              onChange={(e) => {
+                                const val = e.target.value ? Number(e.target.value) : undefined;
+                                setFormVariants(prev => prev.map(v => v.id === variant.id ? { ...v, price: val } : v));
+                              }}
+                              placeholder="Price"
+                              className="w-full bg-zinc-950 border border-zinc-800 p-2 text-[10px] focus:outline-none focus:border-[#DDA15E] text-white font-mono rounded-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Stock dropdown selector */}
+                        <div className="flex items-center space-x-3 text-[9px] text-zinc-400 border-t border-zinc-800/40 pt-2 font-mono">
+                          <span className="font-bold">Stock:</span>
+                          <select
+                            value={variant.stockStatus}
+                            onChange={(e) => {
+                              const val = e.target.value as 'In stock' | 'Out of stock';
+                              setFormVariants(prev => prev.map(v => v.id === variant.id ? { ...v, stockStatus: val } : v));
+                            }}
+                            className="bg-zinc-950 border border-zinc-800 text-white py-1 px-3.5 focus:outline-none cursor-pointer rounded-none font-bold"
+                          >
+                            <option value="In stock">In stock</option>
+                            <option value="Out of stock">Out of stock</option>
+                          </select>
+                        </div>
+
+                        {/* Primary Image Uploader block */}
+                        <div className="space-y-1.5 border-t border-zinc-800/40 pt-3">
+                          <span className="text-zinc-400 text-[8px] font-bold block">Primary image</span>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="text"
+                              value={variant.primaryImage}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setFormVariants(prev => prev.map(v => v.id === variant.id ? { ...v, primaryImage: val } : v));
+                              }}
+                              placeholder="Insert link or click Upload to select files"
+                              className="flex-1 bg-zinc-950 border border-zinc-800 p-2.5 text-[9px] font-mono text-zinc-300 focus:outline-none rounded-none"
+                            />
+
+                            {/* Direct Cloudinary upload trigger */}
+                            <div>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                id={`v-p-file-${variant.id}`}
+                                className="hidden"
+                                onChange={(e) => handleVariantPrimaryUpload(e, variant.id)}
+                              />
+                              <label
+                                htmlFor={`v-p-file-${variant.id}`}
+                                className="cursor-pointer bg-zinc-800 hover:bg-zinc-700 text-zinc-100 px-4 py-2.5 block text-center font-bold tracking-wider border border-zinc-700 active:scale-95 transition-transform rounded-none text-[8.5px] whitespace-nowrap"
+                              >
+                                ↑ Upload
+                              </label>
+                            </div>
+                          </div>
+
+                          {variant.primaryImage && (
+                            <div className="pt-2 flex items-center space-x-3 bg-zinc-950/20 p-2 border border-zinc-850">
+                              <img
+                                src={variant.primaryImage}
+                                alt="Primary Match"
+                                className="w-12 h-12 object-cover border border-zinc-800"
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="space-y-0.5">
+                                <span className="text-emerald-500 font-bold block text-[8px]">✔ Primary Match Configured</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFormVariants(prev => prev.map(v => v.id === variant.id ? { ...v, primaryImage: '' } : v));
+                                  }}
+                                  className="text-rose-500 hover:text-rose-400 font-bold hover:underline text-[8px] uppercase font-mono tracking-wider block"
+                                >
+                                  Clear Image
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Gallery images list */}
+                        <div className="space-y-1.5 border-t border-zinc-800/40 pt-3">
+                          <span className="text-zinc-400 text-[8px] font-bold block">Gallery images</span>
+                          <div className="flex flex-wrap gap-2.5 items-center">
+                            {(variant.galleryImages || []).map((img, imgIdx) => (
+                              <div key={imgIdx} className="relative group w-12 h-12 border border-zinc-800 bg-zinc-950 flex-shrink-0">
+                                <img
+                                  src={img}
+                                  alt={`Gallery ${imgIdx}`}
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFormVariants(prev => prev.map(v => {
+                                      if (v.id === variant.id) {
+                                        const nextGallery = (v.galleryImages || []).filter((_, i) => i !== imgIdx);
+                                        return { ...v, galleryImages: nextGallery };
+                                      }
+                                      return v;
+                                    }));
+                                  }}
+                                  className="absolute -top-1.5 -right-1.5 bg-rose-700 hover:bg-rose-600 text-white w-4 h-4 rounded-full flex items-center justify-center font-mono font-bold hover:scale-105 active:scale-95 transition text-[8.5px]"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+
+                            {/* Add gallery image slot */}
+                            <div>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                id={`v-g-file-${variant.id}`}
+                                className="hidden"
+                                onChange={(e) => handleVariantGalleryUpload(e, variant.id)}
+                              />
+                              <label
+                                htmlFor={`v-g-file-${variant.id}`}
+                                className="cursor-pointer w-12 h-12 border border-dashed border-zinc-800 hover:border-zinc-500 bg-zinc-950 flex items-center justify-center text-zinc-500 hover:text-zinc-300 font-semibold text-lg transition rounded-none"
+                              >
+                                +
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {formVariants.length === 0 && (
+                      <div className="text-center py-6 border border-dashed border-zinc-800 text-zinc-600 italic bg-zinc-950/20 label-caps text-[8.5px] tracking-widest lowercase">
+                        no color-specific variants initiated yet. click the action below to establish matching look variations.
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newId = 'v-' + Math.random().toString(36).substr(2, 9);
+                        const isFirst = formVariants.length === 0;
+                        setFormVariants(prev => [
+                          ...prev,
+                          {
+                            id: newId,
+                            colorName: '',
+                            colorHex: '#0A0A0A',
+                            sku: '',
+                            price: undefined,
+                            stockStatus: 'In stock',
+                            primaryImage: '',
+                            galleryImages: [],
+                            isDefault: isFirst
+                          }
+                        ]);
+                      }}
+                      className="w-full py-3 bg-zinc-900 hover:bg-zinc-850 border border-zinc-850 hover:border-zinc-750 text-[#DDA15E] font-bold uppercase transition tracking-widest text-[9.5px] text-center"
+                    >
+                      + ADD COLOR VARIANT
+                    </button>
                   </div>
                 </div>
 
