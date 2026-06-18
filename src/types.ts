@@ -9,6 +9,29 @@ export interface UserProfile {
   role: UserRole;
   createdAt: string;
   addresses?: Address[];
+  profilePicture?: string;
+}
+
+export interface WalletAndProfitSettings {
+  id: string; // 'wallet_profit_settings'
+  walletEnabled: boolean;
+  signupBonus: number;
+  signupBonusExpiryDays: number;
+  cashbackEnabled: boolean;
+  cashbackPerOrder: number;
+  cashbackExpiryDays: number;
+  minOrderValueToUseWallet: number;
+  maxWalletUsagePercentage: number;
+  maxCombinedDiscountPercentage: number;
+  minimumProfitPerOrder: number;
+  defaultCostPercentageOfSellingPrice: number;
+  referralSystemEnabled: boolean;
+  referrerReward: number;
+  refereeBonus: number;
+  referralBonusExpiryDays: number;
+  birthdayBonusEnabled: boolean;
+  birthdayBonusAmount: number;
+  birthdayBonusExpiryDays: number;
 }
 
 export interface Address {

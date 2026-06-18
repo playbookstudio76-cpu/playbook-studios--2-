@@ -14,7 +14,8 @@ import {
   NewsletterEmail,
   UserWallet,
   WalletTransaction,
-  StoreConfig
+  StoreConfig,
+  WalletAndProfitSettings
 } from './types';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from './mockData';
 import { db, auth } from './firebase';
@@ -32,7 +33,9 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 
 // Storage keys
@@ -52,6 +55,7 @@ const KEYS = {
   SOCIAL_LINKS: 'pb_social_links_db',
   WHATSAPP_CONFIG: 'pb_whatsapp_config_db',
   STORE_CONFIG: 'pb_store_config_db',
+  WALLET_SETTINGS: 'pb_wallet_settings_db',
 };
 
 export function cleanFirestoreData<T extends object>(obj: T): T {
@@ -600,6 +604,80 @@ export function logoutUser() {
   });
 }
 
+export async function loginWithGoogle(): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
+  try {
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    const firebaseUser = result.user;
+    
+    const cleanEmail = firebaseUser.email?.trim().toLowerCase() || '';
+    if (!cleanEmail) {
+      return { success: false, error: 'Google sign-in did not return a valid email address.' };
+    }
+    
+    const users = getAllUsers();
+    let user = users.find(u => u.id === firebaseUser.uid || u.email.toLowerCase() === cleanEmail);
+    
+    const displayName = firebaseUser.displayName || '';
+    const nameParts = displayName.trim().split(/\s+/);
+    const firstName = nameParts[0] || 'Google';
+    const lastName = nameParts.slice(1).join(' ') || 'User';
+    
+    if (!user) {
+      const role: UserRole = isAdminEmail(cleanEmail) ? 'admin' : 'customer';
+      user = {
+        id: firebaseUser.uid,
+        firstName,
+        lastName,
+        email: cleanEmail,
+        phone: firebaseUser.phoneNumber || '',
+        role,
+        createdAt: new Date().toISOString(),
+        addresses: [],
+        profilePicture: firebaseUser.photoURL || ''
+      };
+      
+      // Save in Firestore and localStorage
+      await setDoc(doc(db, 'users', firebaseUser.uid), cleanFirestoreData(user));
+      users.push(user);
+      localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+      
+      // Also trigger wallet creation with default dynamic values
+      getUserWallet(firebaseUser.uid);
+    } else {
+      let changed = false;
+      if (isAdminEmail(cleanEmail) && user.role !== 'admin') {
+        user.role = 'admin';
+        changed = true;
+      }
+      if (user.id !== firebaseUser.uid) {
+        user.id = firebaseUser.uid;
+        changed = true;
+      }
+      if (!user.profilePicture && firebaseUser.photoURL) {
+        user.profilePicture = firebaseUser.photoURL;
+        changed = true;
+      }
+      if (changed) {
+        await setDoc(doc(db, 'users', firebaseUser.uid), cleanFirestoreData(user));
+        localStorage.setItem(KEYS.USERS, JSON.stringify(users.map(u => u.email.toLowerCase() === cleanEmail ? user! : u)));
+      }
+    }
+    
+    localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
+    return { success: true, user };
+  } catch (err: any) {
+    console.error('Google Sign-In Error Detail:', err);
+    let errorMsg = 'Google authentication failed.';
+    if (err.code === 'auth/popup-closed-by-user') {
+      errorMsg = 'Sign-in popup was closed before completion.';
+    } else {
+      errorMsg = err.message || errorMsg;
+    }
+    return { success: false, error: errorMsg };
+  }
+}
+
 export function getAllUsers(): UserProfile[] {
   const list = localStorage.getItem(KEYS.USERS);
   return list ? JSON.parse(list) : [];
@@ -799,9 +877,10 @@ export function createOrder(
     newOrder.couponCodeApplied = couponCodeApplied;
   }
 
-  // If first order, reward user ₹100 back to wallet
-  if (isFirstOrder && userId) {
-    updateUserWallet(userId, 100, `🎁 Playbook First-Order Bonus Reward`);
+  // If first order and cashback enabled, reward user back to wallet
+  const settings = getWalletAndProfitSettings();
+  if (isFirstOrder && userId && settings.cashbackEnabled) {
+    updateUserWallet(userId, settings.cashbackPerOrder, `🎁 Playbook First-Order Cashback Reward`);
   }
 
   // Register user email to Merch Mail list as a prior customer of playbook
@@ -1226,17 +1305,21 @@ export function getUserWallet(userId: string): UserWallet {
   const walletsMap: Record<string, UserWallet> = data ? JSON.parse(data) : {};
   
   if (!walletsMap[userId]) {
+    const settings = getWalletAndProfitSettings();
+    const bonus = settings.walletEnabled ? settings.signupBonus : 0;
+    const transactions = bonus > 0 ? [
+      {
+        id: "tx_signup_bonus",
+        amount: bonus,
+        description: "🎁 Welcome Signup Bonus",
+        createdAt: new Date().toISOString()
+      }
+    ] : [];
+
     const newWallet: UserWallet = {
       id: userId,
-      balance: 300,
-      transactions: [
-        {
-          id: "tx_signup_bonus",
-          amount: 300,
-          description: "🎁 Welcome Signup Bonus",
-          createdAt: new Date().toISOString()
-        }
-      ]
+      balance: bonus,
+      transactions
     };
     walletsMap[userId] = newWallet;
     localStorage.setItem(KEYS.WALLETS, JSON.stringify(walletsMap));
@@ -1319,6 +1402,47 @@ export async function saveStoreConfig(config: StoreConfig): Promise<void> {
     await setDoc(doc(db, 'settings', 'store_config'), cleanFirestoreData(config));
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, 'settings/store_config');
+  }
+}
+
+// ---------------- WALLET & PROFIT CONFIGURATION SERVICE ----------------
+
+export function getWalletAndProfitSettings(): WalletAndProfitSettings {
+  const data = localStorage.getItem(KEYS.WALLET_SETTINGS);
+  if (!data) {
+    const defaultSettings: WalletAndProfitSettings = {
+      id: 'wallet_profit_settings',
+      walletEnabled: true,
+      signupBonus: 300,
+      signupBonusExpiryDays: 14,
+      cashbackEnabled: true,
+      cashbackPerOrder: 100,
+      cashbackExpiryDays: 7,
+      minOrderValueToUseWallet: 100,
+      maxWalletUsagePercentage: 25,
+      maxCombinedDiscountPercentage: 15,
+      minimumProfitPerOrder: 150,
+      defaultCostPercentageOfSellingPrice: 60,
+      referralSystemEnabled: true,
+      referrerReward: 100,
+      refereeBonus: 100,
+      referralBonusExpiryDays: 30,
+      birthdayBonusEnabled: true,
+      birthdayBonusAmount: 200,
+      birthdayBonusExpiryDays: 14,
+    };
+    localStorage.setItem(KEYS.WALLET_SETTINGS, JSON.stringify(defaultSettings));
+    return defaultSettings;
+  }
+  return JSON.parse(data);
+}
+
+export async function saveWalletAndProfitSettings(settings: WalletAndProfitSettings): Promise<void> {
+  localStorage.setItem(KEYS.WALLET_SETTINGS, JSON.stringify(settings));
+  try {
+    await setDoc(doc(db, 'settings', 'wallet_profit_settings'), cleanFirestoreData(settings));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'settings/wallet_profit_settings');
   }
 }
 

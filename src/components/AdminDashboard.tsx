@@ -29,7 +29,7 @@ import {
   Lock,
   ThumbsUp
 } from 'lucide-react';
-import { Product, Order, UserProfile, Category, Coupon, FloatingBanner, AnnouncementBar, SocialConfig, WhatsAppConfig, TeamMember, NewsletterEmail, UserWallet, StoreConfig } from '../types';
+import { Product, Order, UserProfile, Category, Coupon, FloatingBanner, AnnouncementBar, SocialConfig, WhatsAppConfig, TeamMember, NewsletterEmail, UserWallet, StoreConfig, WalletAndProfitSettings } from '../types';
 import { 
   getCurrentUser,
   getAllAnnouncements, saveAnnouncement, deleteAnnouncement,
@@ -40,7 +40,8 @@ import {
   getAllTeamMembers, saveTeamMember, deleteTeamMember,
   getAllNewsletterEmails, deleteNewsletterEmail, addNewsletterEmail,
   getAllWallets, saveWalletRaw, updateUserWallet,
-  getStoreConfig, saveStoreConfig
+  getStoreConfig, saveStoreConfig,
+  getWalletAndProfitSettings, saveWalletAndProfitSettings
 } from '../storage';
 
 interface AdminDashboardProps {
@@ -314,6 +315,9 @@ The Playbook Studios Atelier Team`);
   const [selectedWalletUser, setSelectedWalletUser] = useState<string | null>(null);
   const [walletTxAmount, setWalletTxAmount] = useState<number>(100);
   const [walletTxDesc, setWalletTxDesc] = useState('🎁 Special Promotional Airdrop Reward');
+
+  // Wallet and Profit settings configuration state
+  const [wpSettings, setWpSettings] = useState<WalletAndProfitSettings>(() => getWalletAndProfitSettings());
 
   // Dynamic Metrics Calculation
   const metrics = useMemo(() => {
@@ -1891,9 +1895,9 @@ The Playbook Studios Atelier Team`);
                 Supply absolute Image URLs from the web (Unsplash recommended) to showcase selected high-contrast looks on the storefront.
               </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {[0, 1, 2, 3, 4, 5].map((idx) => (
-                  <div key={idx} className="space-y-1 font-mono text-xs">
+                  <div key={idx} className="space-y-2 font-mono text-xs border border-zinc-100 p-4 bg-zinc-50/50">
                     <label className="text-secondary text-[10px] uppercase block font-bold">Grid Photo #{idx + 1}</label>
                     <input
                       type="text"
@@ -1904,10 +1908,52 @@ The Playbook Studios Atelier Team`);
                         copy[idx] = e.target.value.trim();
                         setScInstaImages(copy);
                       }}
-                      className="bg-white border border-outline-variant p-2 w-full focus:outline-none"
+                      className="bg-white border border-outline-variant p-2 w-full focus:outline-none text-xs"
                     />
+                    
+                    {/* Cloudinary Drop/Click Upload box for Social Lookbook Feed Images */}
+                    <div className="border border-dashed border-zinc-300 p-3 bg-white text-center hover:bg-zinc-50 transition duration-300">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        id={`insta-image-uploader-${idx}`}
+                        className="hidden"
+                        onChange={async (e) => {
+                          const files = e.target.files;
+                          if (!files || files.length === 0) return;
+                          try {
+                            const file = files[0];
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            formData.append('upload_preset', cloudinaryPreset);
+                            formData.append('cloud_name', 'df4qsb2lr');
+                            
+                            const response = await fetch(
+                              `https://api.cloudinary.com/v1_1/df4qsb2lr/image/upload`,
+                              { method: 'POST', body: formData }
+                            );
+                            if (!response.ok) {
+                              throw new Error('Upload failed. Status: ' + response.status);
+                            }
+                            const data = await response.json();
+                            if (data.secure_url) {
+                              const copy = [...scInstaImages];
+                              copy[idx] = data.secure_url;
+                              setScInstaImages(copy);
+                              alert(`🎉 Lookbook Grid image #${idx + 1} uploaded to Cloudinary successfully!`);
+                            }
+                          } catch (err: any) {
+                            alert('Cloudinary upload failure: ' + (err.message || err));
+                          }
+                        }}
+                      />
+                      <label htmlFor={`insta-image-uploader-${idx}`} className="cursor-pointer text-[9px] font-mono uppercase tracking-widest text-primary font-bold hover:underline block">
+                        ↑ Upload image via Cloudinary
+                      </label>
+                    </div>
+
                     {scInstaImages[idx] && (
-                      <div className="mt-1 w-16 h-16 border border-outline-variant bg-zinc-100 overflow-hidden">
+                      <div className="mt-1 w-20 h-20 border border-outline-variant bg-zinc-100 overflow-hidden relative group">
                         <img 
                           src={scInstaImages[idx]} 
                           alt={`Preview #${idx + 1}`} 
@@ -1917,6 +1963,17 @@ The Playbook Studios Atelier Team`);
                             (e.target as HTMLImageElement).src = 'https://placehold.co/150?text=Error';
                           }}
                         />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const copy = [...scInstaImages];
+                            copy[idx] = '';
+                            setScInstaImages(copy);
+                          }}
+                          className="absolute right-0 top-0 bg-red-600 text-white p-1 text-[9px] uppercase font-bold hover:bg-red-700"
+                        >
+                          Clear
+                        </button>
                       </div>
                     )}
                   </div>
@@ -2677,6 +2734,205 @@ The Playbook Studios Atelier Team`);
                   Select a client wallet list row from the main ledger to handle adjustments.
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* WALLET AND PROFIT MARGIN CONFIGURATION CONTROL CENTER */}
+          <div className="border border-outline-variant bg-white p-6 space-y-6">
+            <div className="border-b border-outline-variant pb-3 flex justify-between items-center">
+              <div>
+                <h3 className="font-display-md text-lg tracking-tight text-primary uppercase font-medium">Wallet & Profit Margin System Settings</h3>
+                <p className="font-sans text-[11px] text-secondary mt-0.5">Control client store credit signup bonuses, cashback limitations, and business profit safeguard margins.</p>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    await saveWalletAndProfitSettings(wpSettings);
+                    alert("🎉 Wallet & Profit Margin Settings successfully deployed and committed!");
+                  } catch (err: any) {
+                    alert("Failure storing settings: " + (err.message || err));
+                  }
+                }}
+                className="bg-primary text-on-primary py-2.5 px-6 text-xs uppercase font-semibold tracking-widest hover:opacity-90 transition active:scale-95"
+              >
+                Save Settings
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-xs font-mono">
+              {/* Wallet System Rules Box */}
+              <div className="space-y-4">
+                <h4 className="font-label-caps text-xs font-bold uppercase tracking-wider text-secondary border-b border-zinc-100 pb-1.5 flex items-center justify-between">
+                  <span>1. Wallet Credit Incentives Rules</span>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${wpSettings.walletEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                    {wpSettings.walletEnabled ? 'ACTIVE-LEDGER' : 'DISABLED'}
+                  </span>
+                </h4>
+
+                {/* Toggle System */}
+                <div className="flex items-center justify-between py-2 bg-zinc-50 px-3">
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-primary text-[11px] uppercase block">Enable Wallet System</span>
+                    <span className="text-[10px] text-secondary font-sans leading-relaxed block">Allows customers to hold store balance credits and redeem them at checkout.</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={wpSettings.walletEnabled}
+                    onChange={(e) => setWpSettings(prev => ({ ...prev, walletEnabled: e.target.checked }))}
+                    className="w-4 h-4 text-primary rounded focus:ring-0 cursor-pointer"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-secondary text-[10px] uppercase font-bold block">Sign Up Bonus Credit (₹)</label>
+                    <input
+                      type="number"
+                      value={wpSettings.signupBonus}
+                      onChange={(e) => setWpSettings(prev => ({ ...prev, signupBonus: parseFloat(e.target.value) || 0 }))}
+                      className="bg-white border border-outline-variant p-2 w-full focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-secondary text-[10px] uppercase font-bold block">Bonus Life Limit (Days)</label>
+                    <input
+                      type="number"
+                      value={wpSettings.signupBonusExpiryDays}
+                      onChange={(e) => setWpSettings(prev => ({ ...prev, signupBonusExpiryDays: parseInt(e.target.value) || 0 }))}
+                      className="bg-white border border-outline-variant p-2 w-full focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-secondary text-[10px] uppercase font-bold block">Min Order Value To Use Wallet (₹)</label>
+                    <input
+                      type="number"
+                      value={wpSettings.minOrderValueToUseWallet}
+                      onChange={(e) => setWpSettings(prev => ({ ...prev, minOrderValueToUseWallet: parseFloat(e.target.value) || 0 }))}
+                      className="bg-white border border-outline-variant p-2 w-full focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-secondary text-[10px] uppercase font-bold block">Max Wallet Usage per Order (%)</label>
+                    <input
+                      type="number"
+                      max="100"
+                      min="0"
+                      value={wpSettings.maxWalletUsagePercentage}
+                      onChange={(e) => setWpSettings(prev => ({ ...prev, maxWalletUsagePercentage: parseFloat(e.target.value) || 0 }))}
+                      className="bg-white border border-outline-variant p-2 w-full focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-secondary text-[10px] uppercase font-bold block">Max Combined Discount Limit (%)</label>
+                    <input
+                      type="number"
+                      max="100"
+                      min="0"
+                      value={wpSettings.maxCombinedDiscountPercentage}
+                      onChange={(e) => setWpSettings(prev => ({ ...prev, maxCombinedDiscountPercentage: parseFloat(e.target.value) || 0 }))}
+                      className="bg-white border border-outline-variant p-2 w-full focus:outline-none"
+                      placeholder="e.g. 50"
+                    />
+                    <span className="text-[9px] text-zinc-400 font-sans block mt-0.5">Cap discount combining code coupon & wallet balance.</span>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-secondary text-[10px] uppercase font-bold block">Minimum Withdrawal (₹)</label>
+                    <input
+                      type="number"
+                      value={wpSettings.minWithdrawal || 0}
+                      onChange={(e) => setWpSettings(prev => ({ ...prev, minWithdrawal: parseFloat(e.target.value) || 0 }))}
+                      className="bg-white border border-outline-variant p-2 w-full focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Profitability Control & Cashback Guard Box */}
+              <div className="space-y-4">
+                <h4 className="font-label-caps text-xs font-bold uppercase tracking-wider text-secondary border-b border-zinc-100 pb-1.5 flex items-center justify-between">
+                  <span>2. Profit Margins & Loyalty Protection</span>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${wpSettings.cashbackEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                    {wpSettings.cashbackEnabled ? 'CASHBACK-ON' : 'CASHBACK-OFF'}
+                  </span>
+                </h4>
+
+                {/* Cashback Toggle Option */}
+                <div className="flex items-center justify-between py-2 bg-zinc-50 px-3">
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-primary text-[11px] uppercase block">First Order Cashback</span>
+                    <span className="text-[10px] text-secondary font-sans leading-relaxed block">Renders instant wallet balance cash reward back on completed initial client checkout.</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={wpSettings.cashbackEnabled}
+                    onChange={(e) => setWpSettings(prev => ({ ...prev, cashbackEnabled: e.target.checked }))}
+                    className="w-4 h-4 text-primary rounded focus:ring-0 cursor-pointer"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-secondary text-[10px] uppercase font-bold block">Loyalty Cashback Per Order (₹)</label>
+                    <input
+                      type="number"
+                      value={wpSettings.cashbackPerOrder}
+                      onChange={(e) => setWpSettings(prev => ({ ...prev, cashbackPerOrder: parseFloat(e.target.value) || 0 }))}
+                      className="bg-white border border-outline-variant p-2 w-full focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-secondary text-[10px] uppercase font-bold block">Loyalty Cashback Expiry Limit (Days)</label>
+                    <input
+                      type="number"
+                      value={wpSettings.cashbackExpiryDays}
+                      onChange={(e) => setWpSettings(prev => ({ ...prev, cashbackExpiryDays: parseInt(e.target.value) || 0 }))}
+                      className="bg-white border border-outline-variant p-2 w-full focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-secondary text-[10px] uppercase font-bold block">Minimum Safe Profit per Order (₹)</label>
+                    <input
+                      type="number"
+                      value={wpSettings.minimumProfitPerOrder}
+                      onChange={(e) => setWpSettings(prev => ({ ...prev, minimumProfitPerOrder: parseFloat(e.target.value) || 0 }))}
+                      className="bg-white border border-outline-variant p-2 w-full focus:outline-none"
+                    />
+                    <span className="text-[9px] text-zinc-400 font-sans block mt-0.5">Order cannot validate if total value drops beneath cost + this margin threshold.</span>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-secondary text-[10px] uppercase font-bold block font-mono">Default Cost of Goods (%)</label>
+                    <input
+                      type="number"
+                      value={wpSettings.defaultCostPercentageOfSellingPrice}
+                      onChange={(e) => setWpSettings(prev => ({ ...prev, defaultCostPercentageOfSellingPrice: parseFloat(e.target.value) || 0 }))}
+                      className="bg-white border border-outline-variant p-2 w-full focus:outline-none"
+                    />
+                    <span className="text-[9px] text-zinc-400 font-sans block mt-0.5">Assumed baseline cost percentage of product list pricing for real-time margin checking.</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between py-2 bg-zinc-50 px-3">
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-primary text-[11px] uppercase block">Social Referral Bonus System</span>
+                    <span className="text-[10px] text-secondary font-sans leading-relaxed block">Reward referral agents automatically from administrative cache.</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={wpSettings.referralSystemEnabled}
+                    onChange={(e) => setWpSettings(prev => ({ ...prev, referralSystemEnabled: e.target.checked }))}
+                    className="w-4 h-4 text-primary rounded focus:ring-0 cursor-pointer"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>

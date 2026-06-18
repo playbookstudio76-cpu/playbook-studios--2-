@@ -77,6 +77,10 @@ export default function App() {
       setBanners(getAllBanners());
       setSocialConfig(getSocialConfig());
       setStoreConfig(getStoreConfig());
+      
+      // Keep currentUser reactively in sync on Auth changes
+      const activeUser = getCurrentUser();
+      setCurrentUser(activeUser);
     });
 
     // Resolve Hash-based or basic path navigation for dynamic iframe refresh resilience

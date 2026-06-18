@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile, StoreConfig } from '../types';
-import { loginUser, signupUser } from '../storage';
+import { loginUser, signupUser, loginWithGoogle } from '../storage';
 
 interface AuthViewProps {
   onAuthSuccess: (user: UserProfile) => void;
@@ -17,6 +17,29 @@ export default function AuthView({ onAuthSuccess, onNavigate, storeConfig }: Aut
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setSuccessMsg('');
+    try {
+      const res = await loginWithGoogle();
+      if (res.success && res.user) {
+        setSuccessMsg('Google Authentication Successful!');
+        setTimeout(() => {
+          onAuthSuccess(res.user!);
+          if (res.user!.role === 'admin') {
+            onNavigate('admin');
+          } else {
+            onNavigate('home');
+          }
+        }, 1000);
+      } else {
+        setError(res.error || 'Google login failed.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Google Auth Error');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -218,6 +241,26 @@ export default function AuthView({ onAuthSuccess, onNavigate, storeConfig }: Aut
                 className="bg-primary text-on-primary font-button-text font-semibold uppercase tracking-widest text-xs py-4 px-6 select-none shadow-sm hover:opacity-90 active:scale-95 transition-all text-center rounded-none"
               >
                 {isLogin ? 'Sign In' : 'Create Account'}
+              </button>
+
+              <div className="relative flex py-2 items-center">
+                <div className="flex-grow border-t border-outline-variant"></div>
+                <span className="flex-shrink mx-4 font-mono text-[9px] text-secondary tracking-widest uppercase">OR</span>
+                <div className="flex-grow border-t border-outline-variant"></div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="flex items-center justify-center space-x-3 border border-outline-variant hover:border-primary text-primary font-button-text font-semibold uppercase tracking-widest text-xs py-4 px-6 select-none transition-all rounded-none bg-white hover:bg-slate-50 active:scale-95"
+              >
+                <svg className="w-4 h-4 mr-1 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#EA4335" d="M12 5.04c1.64 0 3.12.56 4.28 1.67l3.2-3.2C17.52 1.58 14.94 1 12 1 7.24 1 3.2 3.74 1.25 7.72l3.87 3a6.97 6.97 0 0 1 6.88-5.68z" />
+                  <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.34H12v4.44h6.44a5.51 5.51 0 0 1-2.39 3.61l3.71 2.87c2.17-2 3.73-4.94 3.73-8.58z" />
+                  <path fill="#FBBC05" d="M5.12 14.28A7.05 7.05 0 0 1 4.7 12c0-.8.14-1.57.42-2.28L1.25 6.72A11.97 11.97 0 0 0 0 12c0 1.93.46 3.76 1.25 5.28l3.87-3z" />
+                  <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.71-2.87c-1.03.69-2.35 1.1-4.25 1.1a6.97 6.97 0 0 1-6.88-5.68l-3.87 3A11.97 11.97 0 0 0 12 23z" />
+                </svg>
+                <span>Continue with Google</span>
               </button>
 
               <div className="text-center mt-6">
