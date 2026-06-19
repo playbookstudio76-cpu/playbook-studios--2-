@@ -464,6 +464,7 @@ export default function App() {
             onLogout={handleLogout}
             onNavigate={handleNavigate}
             onUpdateUser={(usr) => setCurrentUser(usr)}
+            initialTab={viewParams?.tab as any}
           />
         )}
 

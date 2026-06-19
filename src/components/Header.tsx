@@ -1,5 +1,6 @@
-import { Search, User, ShoppingBag, LogOut, ShieldAlert } from 'lucide-react';
+import { Search, User, ShoppingBag, LogOut, ShieldAlert, Wallet } from 'lucide-react';
 import { UserProfile } from '../types';
+import { getUserWallet } from '../storage';
 
 interface HeaderProps {
   currentUser: UserProfile | null;
@@ -18,6 +19,8 @@ export default function Header({
   onLogout,
   currentView
 }: HeaderProps) {
+  const walletBalance = currentUser ? getUserWallet(currentUser.id).balance : 0;
+
   return (
     <header className="border-b border-outline-variant bg-surface-container-lowest sticky top-0 z-40 transition-all">
       <div className="max-w-[1440px] mx-auto px-4 md:px-[64px] h-[80px] flex items-center justify-between">
@@ -91,6 +94,26 @@ export default function Header({
             title="Search products"
           >
             <Search className="w-5 h-5 stroke-[1.5]" />
+          </button>
+
+          {/* Wallet Balance Display */}
+          <button
+            onClick={() => {
+              if (currentUser) {
+                onNavigate('dashboard', { tab: 'wallet' });
+              } else {
+                onNavigate('auth');
+              }
+            }}
+            className="flex items-center space-x-1.5 text-on-background hover:opacity-60 transition-opacity"
+            title={currentUser ? "My Wallet Balance" : "Sign in to view Wallet"}
+          >
+            <Wallet className="w-5 h-5 stroke-[1.5]" />
+            {currentUser && (
+              <span className="font-mono text-xs font-semibold text-[#DDA15E]">
+                ₹{walletBalance.toLocaleString()}
+              </span>
+            )}
           </button>
 
           {/* User Account / Login */}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Package, LogOut, ChevronDown, ChevronUp, MapPin, Plus, CheckCircle2, Circle, Edit3, X, Wallet, Heart, Shield } from 'lucide-react';
 import { UserProfile, Order, Address } from '../types';
 import { saveCurrentUserSnapshot, getUserWallet } from '../storage';
@@ -9,6 +9,7 @@ interface CustomerDashboardProps {
   onLogout: () => void;
   onNavigate: (view: string, props?: any) => void;
   onUpdateUser: (updatedUser: UserProfile) => void;
+  initialTab?: 'profile' | 'orders' | 'wallet';
 }
 
 export default function CustomerDashboard({
@@ -17,9 +18,17 @@ export default function CustomerDashboard({
   onLogout,
   onNavigate,
   onUpdateUser,
+  initialTab,
 }: CustomerDashboardProps) {
   // Sidebar tab control
-  const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'wallet'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'wallet'>(initialTab || 'profile');
+
+  // React to initialTab changes dynamically
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Accordion open for order lines
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(orders[0]?.id || null);

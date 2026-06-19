@@ -139,7 +139,7 @@ export default function HomeView({ products, onNavigate, socialConfig, categorie
             STREETWEAR DICTIONARY
           </p>
           <h2 className="font-display-lg text-[28px] md:text-[40px] leading-tight tracking-[0.01em] uppercase font-light">
-            "PLAYBOOK DOES NOT DICTATE TRENDS. WE RECORD ARCHITECTURE ON TEXTILE."
+            "WE DON'T FOLLOW TRENDS, WE DROP STATEMENTS"
           </h2>
           <div className="w-12 h-[1px] bg-white/40 mx-auto"></div>
           <button 
