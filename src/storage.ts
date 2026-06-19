@@ -17,7 +17,8 @@ import {
   StoreConfig,
   WalletAndProfitSettings,
   ShippingTier,
-  DeliveryZone
+  DeliveryZone,
+  CustomPage
 } from './types';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from './mockData';
 import { db, auth } from './firebase';
@@ -60,6 +61,7 @@ const KEYS = {
   WALLET_SETTINGS: 'pb_wallet_settings_db',
   SHIPPING_TIERS: 'pb_shipping_tiers_db',
   DELIVERY_ZONES: 'pb_delivery_zones_db',
+  PAGES: 'pb_pages_db',
 };
 
 export function cleanFirestoreData<T extends any>(val: T): T {
@@ -236,6 +238,7 @@ export function startFirebaseSync(onUpdate: () => void) {
   let unsubTeamMembers: () => void = () => {};
   let unsubNewsletterEmails: () => void = () => {};
   let unsubSettings: () => void = () => {};
+  let unsubPages: () => void = () => {};
 
   try {
     // 1. Sync Products (allowed for everyone)
@@ -316,6 +319,20 @@ export function startFirebaseSync(onUpdate: () => void) {
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'team_members');
+    });
+
+    // Sync Pages (allowed for everyone)
+    unsubPages = onSnapshot(collection(db, 'pages'), (snapshot) => {
+      const items: CustomPage[] = [];
+      snapshot.forEach(docSnap => {
+        items.push({ id: docSnap.id, ...docSnap.data() } as CustomPage);
+      });
+      if (items.length > 0) {
+        localStorage.setItem(KEYS.PAGES, JSON.stringify(items));
+        onUpdate();
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'pages');
     });
 
     // 2f. Sync Settings (allowed for everyone, specifically social_links and whatsapp_config)
@@ -463,6 +480,7 @@ export function startFirebaseSync(onUpdate: () => void) {
       unsubTeamMembers();
       unsubNewsletterEmails();
       unsubSettings();
+      unsubPages();
     };
 
   } catch (err) {
@@ -1529,5 +1547,89 @@ export async function saveDeliveryZones(zones: DeliveryZone[]): Promise<void> {
     handleFirestoreError(err, OperationType.WRITE, 'settings/delivery_zones');
   }
 }
+
+const DEFAULT_PAGES: CustomPage[] = [
+  {
+    id: 'sustainability',
+    slug: 'sustainability',
+    title: 'Sustainability Commitment',
+    content: '### Our Eco-System Ethics\n\nAt Playbook Studios, our commitment to architectural design is balanced by our dedication to ethical micro-production. We craft every piece in limited batches to eliminate deadstock waste.\n\n- **100% Organic Fibers**: Every garment uses certified organic cotton and recycled technical blends.\n- **Carbon Neutral Logistics**: We support certified carbon offset programs for all parcel shipments.\n- **Circular Design**: We design garments that last, resisting seasonal rapid-consumption trends.',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'shipping-returns',
+    slug: 'shipping-returns',
+    title: 'Shipping & Returns Policy',
+    content: '### Premium Handled Commerce\n\nWe offer worldwide premium trackable shipping. Standard processing takes 2-4 business days. Returns can be initiated within 14 days of delivery for store wallet credit.\n\n- **Free Shipping**: Available for orders containing 3+ elements or matching tiers.\n- **Easy Returns**: Simply message our support on WhatsApp to process size-refinement or store credit swaps.\n- **Secure Delivery**: Standard transit times are 3-7 terminal business days.',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'privacy-policy',
+    slug: 'privacy-policy',
+    title: 'Privacy & Security Directives',
+    content: '### Data Sovereignty\n\nYour privacy is material to us. We secure your credentials via encrypted cloud protocols and never sell user navigation or purchase data to third-party ad brokers.\n\n- **Zero External Tracking**: No third-party behavioral cookies or advertising trackers.\n- **Secure Ledger**: Wallet transactions and balances are isolated in protected Firestore instances.\n- **Communication Preference**: Opt-out of newsletters instantly with one single action.',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'terms-and-conditions',
+    slug: 'terms-and-conditions',
+    title: 'Terms & Conditions',
+    content: '### Studio Engagement Rules\n\nBy accessing Playbook Studios, you agree to our premium streetwear archive acquisition guidelines. All collections are limited runs and subject to dynamic stock availability.\n\n1. **Limited Acquisitions**: To discourage reselling, individual orders may be restricted to maximum 5 items of a single SKU.\n2. **Verified Accounts**: Promo wallet credits are non-transferable and expire under predefined campaigns.\n3. **Content IP**: All architectural blueprints, imagery, and design templates are exclusive properties of Playbook Studios.',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'about-us',
+    slug: 'about-us',
+    title: 'About Playbook Studios',
+    content: '### Geometric Order & Contemporary Craft\n\nPlaybook Studios is a design lab crafting refined, minimalist architectural streetwear. We explore the lines between geometric order, industrial design, and contemporary culture.\n\nFounded in 2026, our designs are defined by high-contrast tones, structured silhouettes, and material selections. Every collection functions as an archive entry, released in limited-run installments.',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'contact',
+    slug: 'contact',
+    title: 'Contact Us',
+    content: '### Support & Inquiry Channels\n\nGet in touch with our representative channel. Reach us via email at playbookstudio76@gmail.com, or message us directly through our live WhatsApp portal.\n\n- **Representative Email**: playbookstudio76@gmail.com\n- **WhatsApp Support Desk**: Available Mon - Fri, 10 AM to 6 PM IST\n- **Press / Wholesale**: wholesale@playbookstudios.com',
+    updatedAt: new Date().toISOString()
+  }
+];
+
+export function getCustomPages(): CustomPage[] {
+  const data = localStorage.getItem(KEYS.PAGES);
+  if (!data) {
+    // Populate with defaults
+    localStorage.setItem(KEYS.PAGES, JSON.stringify(DEFAULT_PAGES));
+    DEFAULT_PAGES.forEach(pg => {
+      setDoc(doc(db, 'pages', pg.id), cleanFirestoreData(pg)).catch(e => {
+        console.warn('Silent seeding page warning:', pg.id, e);
+      });
+    });
+    return DEFAULT_PAGES;
+  }
+  try {
+    return JSON.parse(data);
+  } catch (e) {
+    console.error(e);
+    return DEFAULT_PAGES;
+  }
+}
+
+export async function saveCustomPage(page: CustomPage): Promise<void> {
+  const pages = getCustomPages();
+  const index = pages.findIndex(p => p.id === page.id);
+  const updated = [...pages];
+  page.updatedAt = new Date().toISOString();
+  if (index !== -1) {
+    updated[index] = page;
+  } else {
+    updated.push(page);
+  }
+  localStorage.setItem(KEYS.PAGES, JSON.stringify(updated));
+  try {
+    await setDoc(doc(db, 'pages', page.id), cleanFirestoreData(page));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `pages/${page.id}`);
+  }
+}
+
 
 

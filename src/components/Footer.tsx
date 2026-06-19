@@ -1,4 +1,6 @@
-export default function Footer({ onNavigate }: { onNavigate?: (view: string, props?: any) => void }) {
+import { CustomPage } from '../types';
+
+export default function Footer({ onNavigate, pages = [] }: { onNavigate?: (view: string, props?: any) => void, pages?: CustomPage[] }) {
   const currentYear = new Date().getFullYear();
 
   return (
@@ -17,26 +19,17 @@ export default function Footer({ onNavigate }: { onNavigate?: (view: string, pro
 
         {/* Links */}
         <div className="flex flex-wrap justify-center gap-x-8 gap-y-4 text-xs font-label-caps tracking-wider text-secondary">
+          {pages.map((page) => (
+             <button 
+               key={page.id}
+               onClick={() => onNavigate?.('page', { slug: page.slug })}
+               className="hover:text-primary hover:underline transition-all cursor-pointer"
+             >
+               {page.title}
+             </button>
+          ))}
           <button 
-            onClick={() => onNavigate?.('shop', { filter: 'sustainability' })}
-            className="hover:text-primary hover:underline transition-all cursor-pointer"
-          >
-            Sustainability
-          </button>
-          <button 
-            onClick={() => onNavigate?.('shop', { filter: 'shipping' })}
-            className="hover:text-primary hover:underline transition-all cursor-pointer"
-          >
-            Shipping & Returns
-          </button>
-          <button 
-            onClick={() => onNavigate?.('shop', { filter: 'privacy' })}
-            className="hover:text-primary hover:underline transition-all cursor-pointer"
-          >
-            Privacy Policy
-          </button>
-          <button 
-            onClick={() => alert('Support Representative channel opened! Line is ready at playbookstudio76@gmail.com')}
+            onClick={() => onNavigate?.('page', { slug: 'contact' })}
             className="hover:text-primary hover:underline transition-all cursor-pointer"
           >
             Contact

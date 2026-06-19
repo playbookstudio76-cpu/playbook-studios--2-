@@ -8,7 +8,8 @@ import ProductDetailView from './components/ProductDetailView';
 import CartDrawer from './components/CartDrawer';
 import CustomerDashboard from './components/CustomerDashboard';
 import AdminDashboard from './components/AdminDashboard';
-import { UserProfile, Product, Order, CartItem, Category, AnnouncementBar, FloatingBanner, SocialConfig, StoreConfig } from './types';
+import PageDetailView from './components/PageDetailView';
+import { UserProfile, Product, Order, CartItem, Category, AnnouncementBar, FloatingBanner, SocialConfig, StoreConfig, CustomPage } from './types';
 import { 
   getCurrentUser, 
   logoutUser, 
@@ -29,7 +30,8 @@ import {
   getAllAnnouncements,
   getAllBanners,
   getSocialConfig,
-  getStoreConfig
+  getStoreConfig,
+  getCustomPages
 } from './storage';
 
 export default function App() {
@@ -58,6 +60,7 @@ export default function App() {
   const [banners, setBanners] = useState<FloatingBanner[]>([]);
   const [socialConfig, setSocialConfig] = useState<SocialConfig | null>(null);
   const [storeConfig, setStoreConfig] = useState<StoreConfig | null>(null);
+  const [pages, setPages] = useState<CustomPage[]>([]);
   
   // Cart state
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -77,6 +80,7 @@ export default function App() {
     setBanners(getAllBanners());
     setSocialConfig(getSocialConfig());
     setStoreConfig(getStoreConfig());
+    setPages(getCustomPages());
 
     // Connect to real-time remote Firebase tables
     const unsubSync = startFirebaseSync(() => {
@@ -88,6 +92,7 @@ export default function App() {
       setBanners(getAllBanners());
       setSocialConfig(getSocialConfig());
       setStoreConfig(getStoreConfig());
+      setPages(getCustomPages());
       
       // Keep currentUser reactively in sync on Auth changes
       const activeUser = getCurrentUser();
@@ -109,6 +114,12 @@ export default function App() {
         if (prodId) {
           setCurrentView('product');
           setViewParams({ id: prodId });
+        }
+      } else if (cleanHash.startsWith('page?slug=')) {
+        const pageSlug = cleanHash.split('?slug=')[1];
+        if (pageSlug) {
+          setCurrentView('page');
+          setViewParams({ slug: pageSlug });
         }
       } else if (cleanHash === 'dashboard') {
         setCurrentView(activeUser ? 'dashboard' : 'auth');
@@ -152,6 +163,8 @@ export default function App() {
     // Hash updates to persist route history on iframe reloads
     if (view === 'product' && extraParams.id) {
       window.location.hash = `product?id=${extraParams.id}`;
+    } else if (view === 'page' && extraParams.slug) {
+      window.location.hash = `page?slug=${extraParams.slug}`;
     } else {
       window.location.hash = view;
     }
@@ -481,6 +494,14 @@ export default function App() {
             onAddCategory={handleAdminAddCategory}
           />
         )}
+
+        {currentView === 'page' && (
+          <PageDetailView
+            slug={viewParams.slug || 'sustainability'}
+            pages={pages}
+            onNavigate={handleNavigate}
+          />
+        )}
       </main>
 
       {/* FLOATING BANNERS (Admin-managed) */}
@@ -549,7 +570,7 @@ export default function App() {
       />
 
       {/* 5. BRAND GLOBAL FOOTER */}
-      <Footer onNavigate={handleNavigate} />
+      <Footer onNavigate={handleNavigate} pages={pages} />
 
       {/* 6. CUSTOM PREMIUM FLOATING TOASTS NOTIFICATIONS */}
       <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-2.5 pointer-events-none max-w-sm w-full">

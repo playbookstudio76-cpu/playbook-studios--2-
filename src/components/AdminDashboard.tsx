@@ -27,9 +27,10 @@ import {
   Shield,
   MessageSquare,
   Lock,
-  ThumbsUp
+  ThumbsUp,
+  FileText
 } from 'lucide-react';
-import { Product, Order, UserProfile, Category, Coupon, FloatingBanner, AnnouncementBar, SocialConfig, WhatsAppConfig, TeamMember, NewsletterEmail, UserWallet, StoreConfig, WalletAndProfitSettings, ShippingTier, DeliveryZone, ColorVariant } from '../types';
+import { Product, Order, UserProfile, Category, Coupon, FloatingBanner, AnnouncementBar, SocialConfig, WhatsAppConfig, TeamMember, NewsletterEmail, UserWallet, StoreConfig, WalletAndProfitSettings, ShippingTier, DeliveryZone, ColorVariant, CustomPage } from '../types';
 import { 
   getCurrentUser,
   getAllAnnouncements, saveAnnouncement, deleteAnnouncement,
@@ -43,7 +44,8 @@ import {
   getStoreConfig, saveStoreConfig,
   getWalletAndProfitSettings, saveWalletAndProfitSettings,
   getShippingTiers, saveShippingTiers,
-  getDeliveryZones, saveDeliveryZones
+  getDeliveryZones, saveDeliveryZones,
+  getCustomPages, saveCustomPage
 } from '../storage';
 
 interface AdminDashboardProps {
@@ -88,7 +90,14 @@ export default function AdminDashboard({
     | 'store_config'
     | 'shipping'
     | 'delivery'
+    | 'pages'
   >('metrics');
+
+  // Custom Pages State
+  const [customPagesList, setCustomPagesList] = useState<CustomPage[]>(() => getCustomPages());
+  const [editingPage, setEditingPage] = useState<CustomPage | null>(null);
+  const [pageEditTitle, setPageEditTitle] = useState('');
+  const [pageEditContent, setPageEditContent] = useState('');
 
   // Product modal / forms trigger
   const [isAddingProduct, setIsAddingProduct] = useState(false);
@@ -119,6 +128,7 @@ export default function AdminDashboard({
     }
     setShippingTiers(getShippingTiers());
     setDeliveryZones(getDeliveryZones());
+    setCustomPagesList(getCustomPages());
   }, []);
 
   // Form Field parameters for product creation / editing
@@ -796,6 +806,7 @@ The Playbook Studios Atelier Team`);
           { id: 'merch_mail', name: 'Merch Mail', icon: <Mail className="w-3.5 h-3.5" /> },
           { id: 'team_members', name: 'Team', icon: <Users className="w-3.5 h-3.5" /> },
           { id: 'wallets', name: 'Wallets', icon: <Coins className="w-3.5 h-3.5" /> },
+          { id: 'pages', name: 'Pages', icon: <FileText className="w-3.5 h-3.5" /> },
           { id: 'store_config', name: 'Layout Style', icon: <Sliders className="w-3.5 h-3.5" /> },
           { id: 'shipping', name: 'Shipping', icon: <Package className="w-3.5 h-3.5" /> },
           { id: 'delivery', name: 'Delivery', icon: <PackageCheck className="w-3.5 h-3.5" /> }
@@ -4101,6 +4112,176 @@ The Playbook Studios Atelier Team`);
               >
                 Save Zones
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeAdminTab === 'pages' && (
+        <div className="space-y-10" id="admin-pages-manager">
+          <div className="flex justify-between items-center border-b border-outline-variant pb-4">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight uppercase">Custom Studio Pages</h2>
+              <p className="text-zinc-500 font-mono text-[11px] uppercase mt-1">Manage content and custom templates for footer navigation</p>
+            </div>
+            <button
+              onClick={() => {
+                const newSlug = prompt("Enter lower-case URL slug (e.g. shipping-returns, custom-info):");
+                if (!newSlug) return;
+                const cleanSlug = newSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+                const titleInput = prompt("Enter title for this page:");
+                if (!titleInput) return;
+                
+                const newPage: CustomPage = {
+                  id: cleanSlug,
+                  slug: cleanSlug,
+                  title: titleInput,
+                  content: "### Page Heading\n\nStart typing content here. Support **bold text** with bold delimiters, lists and paragraphs.",
+                  updatedAt: new Date().toISOString()
+                };
+                
+                saveCustomPage(newPage).then(() => {
+                  setCustomPagesList(getCustomPages());
+                  setEditingPage(newPage);
+                  setPageEditTitle(newPage.title);
+                  setPageEditContent(newPage.content);
+                });
+              }}
+              className="bg-primary hover:bg-[#DDA15E] text-black px-5 py-3 text-[10px] font-label-caps uppercase tracking-widest transition flex items-center space-x-1.5 font-bold"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Custom Page</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* List block */}
+            <div className="md:col-span-1 space-y-3">
+              <span className="block font-label-caps text-[10px] tracking-widest text-[#DDA15E] uppercase font-bold">Studio Documents</span>
+              <div className="border border-outline-variant rounded-none divide-y divide-outline-variant select-none">
+                {customPagesList.map((pg) => {
+                  const isActive = editingPage?.id === pg.id;
+                  return (
+                    <button
+                      key={pg.id}
+                      onClick={() => {
+                        setEditingPage(pg);
+                        setPageEditTitle(pg.title);
+                        setPageEditContent(pg.content);
+                      }}
+                      className={`w-full text-left px-4 py-4 transition flex justify-between items-center cursor-pointer ${
+                        isActive 
+                          ? 'bg-zinc-900 border-l-4 border-amber-500 text-white' 
+                          : 'bg-transparent text-zinc-400 hover:bg-zinc-900/50 hover:text-white'
+                      }`}
+                    >
+                      <div>
+                        <div className="text-xs font-semibold uppercase font-mono tracking-wider">{pg.title}</div>
+                        <div className="text-[10px] text-zinc-500 font-mono">/{pg.slug}</div>
+                      </div>
+                      <Edit3 className="w-3.5 h-3.5 opacity-60" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Editor block */}
+            <div className="md:col-span-2">
+              {editingPage ? (
+                <div className="border border-outline-variant p-6 space-y-6 bg-zinc-950/40">
+                  <div className="flex justify-between items-center pb-2 border-b border-outline-variant">
+                    <div>
+                      <span className="font-mono text-[10px] text-[#DDA15E] tracking-widest uppercase">Document Workspace</span>
+                      <h4 className="text-sm font-bold uppercase font-mono mt-1 text-white">Slug: /{editingPage.slug}</h4>
+                    </div>
+                    {/* Delete option only for custom ones if not of original defaults */}
+                    {!['sustainability', 'shipping-returns', 'privacy-policy', 'terms-and-conditions', 'about-us', 'contact'].includes(editingPage.id) && (
+                      <button
+                        onClick={async () => {
+                          if (confirm(`Are you sure you want to delete ${editingPage.title}?`)) {
+                            const nextPages = customPagesList.filter(p => p.id !== editingPage.id);
+                            localStorage.setItem('pb_pages_db', JSON.stringify(nextPages));
+                            try {
+                              const { deleteDoc, doc } = await import('firebase/firestore');
+                              const { db } = await import('../firebase');
+                              await deleteDoc(doc(db, 'pages', editingPage.id));
+                            } catch (e) {
+                              console.warn(e);
+                            }
+                            setCustomPagesList(nextPages);
+                            setEditingPage(null);
+                          }
+                        }}
+                        className="text-red-500 hover:text-red-600 transition flex items-center space-x-1 font-mono text-[10px] cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>DELETE DOCUMENT</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Form fields */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] font-label-caps uppercase tracking-wider text-secondary mb-1.5">Document Title</label>
+                      <input
+                        type="text"
+                        value={pageEditTitle}
+                        onChange={(e) => setPageEditTitle(e.target.value)}
+                        className="w-full bg-zinc-900 border border-outline-variant px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-500 rounded-none font-mono"
+                        placeholder="e.g. Terms of Purchase"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="block text-[10px] font-label-caps uppercase tracking-wider text-secondary">Markdown Content Body</label>
+                        <span className="text-[9px] text-zinc-500 font-mono uppercase">Supports head (###), bold (**), loops (- )</span>
+                      </div>
+                      <textarea
+                        value={pageEditContent}
+                        onChange={(e) => setPageEditContent(e.target.value)}
+                        className="w-full min-h-[250px] bg-zinc-900 border border-outline-variant px-4 py-3 text-sm text-zinc-300 focus:outline-none focus:border-amber-500 rounded-none font-sans leading-relaxed resize-y"
+                        placeholder="Write content body text..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      onClick={async () => {
+                        setIsSavingCloud(true);
+                        try {
+                          const updated: CustomPage = {
+                            ...editingPage,
+                            title: pageEditTitle,
+                            content: pageEditContent,
+                            updatedAt: new Date().toISOString()
+                          };
+                          await saveCustomPage(updated);
+                          setCustomPagesList(getCustomPages());
+                          setEditingPage(updated);
+                          alert(`🎉 "${updated.title}" successfully saved changes, updated caches and synced to database!`);
+                        } catch (err: any) {
+                          alert("Error saving page: " + err);
+                        } finally {
+                          setIsSavingCloud(false);
+                        }
+                      }}
+                      disabled={isSavingCloud}
+                      className="bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-black px-6 py-4 font-bold uppercase tracking-widest text-[10px] transition rounded-none font-mono cursor-pointer"
+                    >
+                      {isSavingCloud ? 'Saving Securely...' : 'Save Page Content'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="border border-outline-variant p-10 bg-zinc-950/20 text-center text-zinc-500 font-mono text-xs uppercase tracking-wider flex flex-col justify-center items-center min-h-[300px]">
+                  <FileText className="w-8 h-8 text-zinc-600 mb-3" />
+                  <span>Select a document from the archive list to edit its content settings</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

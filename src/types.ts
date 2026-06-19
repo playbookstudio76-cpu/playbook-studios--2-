@@ -229,3 +229,12 @@ export interface DeliveryZone {
   minDays: number;
   maxDays: number;
 }
+
+export interface CustomPage {
+  id: string; // e.g., 'sustainability', 'shipping-returns', 'privacy-policy', 'about-us', 'contact'
+  slug: string; // e.g., 'sustainability', 'shipping' etc.
+  title: string;
+  content: string;
+  updatedAt: string;
+}
+
