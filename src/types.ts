@@ -141,6 +141,15 @@ export interface Coupon {
   createdAt: string;
 }
 
+export interface HomepageBanner {
+  id: string;
+  title: string;
+  imageUrl: string;
+  linkUrl: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export interface FloatingBanner {
   id: string;
   title: string;

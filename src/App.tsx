@@ -570,7 +570,7 @@ export default function App() {
       />
 
       {/* 5. BRAND GLOBAL FOOTER */}
-      <Footer onNavigate={handleNavigate} pages={pages} />
+      <Footer onNavigate={handleNavigate} pages={pages} socialConfig={socialConfig} />
 
       {/* 6. CUSTOM PREMIUM FLOATING TOASTS NOTIFICATIONS */}
       <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-2.5 pointer-events-none max-w-sm w-full">

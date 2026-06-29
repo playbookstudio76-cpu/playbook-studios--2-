@@ -18,7 +18,8 @@ import {
   WalletAndProfitSettings,
   ShippingTier,
   DeliveryZone,
-  CustomPage
+  CustomPage,
+  HomepageBanner
 } from './types';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from './mockData';
 import { db, auth } from './firebase';
@@ -62,6 +63,7 @@ const KEYS = {
   SHIPPING_TIERS: 'pb_shipping_tiers_db',
   DELIVERY_ZONES: 'pb_delivery_zones_db',
   PAGES: 'pb_pages_db',
+  HOME_BANNERS: 'pb_home_banners_db',
 };
 
 export function cleanFirestoreData<T extends any>(val: T): T {
@@ -239,6 +241,7 @@ export function startFirebaseSync(onUpdate: () => void) {
   let unsubNewsletterEmails: () => void = () => {};
   let unsubSettings: () => void = () => {};
   let unsubPages: () => void = () => {};
+  let unsubHomeBanners: () => void = () => {};
 
   try {
     // 1. Sync Products (allowed for everyone)
@@ -333,6 +336,20 @@ export function startFirebaseSync(onUpdate: () => void) {
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'pages');
+    });
+
+    // Sync Home Banners (allowed for everyone)
+    unsubHomeBanners = onSnapshot(collection(db, 'home_banners'), (snapshot) => {
+      const items: HomepageBanner[] = [];
+      snapshot.forEach(docSnap => {
+        items.push({ id: docSnap.id, ...docSnap.data() } as HomepageBanner);
+      });
+      if (items.length > 0) {
+        localStorage.setItem(KEYS.HOME_BANNERS, JSON.stringify(items));
+        onUpdate();
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'home_banners');
     });
 
     // 2f. Sync Settings (allowed for everyone, specifically social_links and whatsapp_config)
@@ -481,6 +498,7 @@ export function startFirebaseSync(onUpdate: () => void) {
       unsubNewsletterEmails();
       unsubSettings();
       unsubPages();
+      unsubHomeBanners();
     };
 
   } catch (err) {
@@ -998,8 +1016,13 @@ export function getWhatsAppCheckoutUrl(order: Order): string {
   if (rawNum.length === 10) {
     rawNum = '91' + rawNum;
   }
+  const products = getAllProducts();
   const itemsText = order.items
-    .map(item => `• ${item.name} (${item.color} | Size ${item.size}) x${item.quantity}`)
+    .map(item => {
+        const prod = products.find(p => p.id === item.productId);
+        const code = prod?.productCode ? `[${prod.productCode}] ` : '';
+        return `• ${code}${item.name} (${item.color} | Size ${item.size}) x${item.quantity}`;
+    })
     .join('%0A');
 
   const text = `*PLAYBOOK STUDIOS - ORDER PLACED*%0A%0A` +
@@ -1096,6 +1119,39 @@ export async function deleteBanner(id: string): Promise<void> {
     await deleteDoc(doc(db, 'banners', id));
   } catch (err) {
     handleFirestoreError(err, OperationType.DELETE, `banners/${id}`);
+  }
+}
+
+// ---------------- HOMEPAGE BANNERS SERVICE ----------------
+
+export function getAllHomeBanners(): HomepageBanner[] {
+  const data = localStorage.getItem(KEYS.HOME_BANNERS);
+  return data ? JSON.parse(data) : [];
+}
+
+export async function saveHomeBanner(banner: HomepageBanner): Promise<void> {
+  const banners = getAllHomeBanners();
+  const idx = banners.findIndex(b => b.id === banner.id);
+  if (idx !== -1) {
+    banners[idx] = banner;
+  } else {
+    banners.unshift(banner);
+  }
+  localStorage.setItem(KEYS.HOME_BANNERS, JSON.stringify(banners));
+  try {
+    await setDoc(doc(db, 'home_banners', banner.id), cleanFirestoreData(banner));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `home_banners/${banner.id}`);
+  }
+}
+
+export async function deleteHomeBanner(id: string): Promise<void> {
+  const banners = getAllHomeBanners().filter(b => b.id !== id);
+  localStorage.setItem(KEYS.HOME_BANNERS, JSON.stringify(banners));
+  try {
+    await deleteDoc(doc(db, 'home_banners', id));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `home_banners/${id}`);
   }
 }
 

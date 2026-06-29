@@ -1,7 +1,9 @@
-import { CustomPage } from '../types';
+import { CustomPage, SocialConfig } from '../types';
+import { getSocialConfig } from '../storage';
 
-export default function Footer({ onNavigate, pages = [] }: { onNavigate?: (view: string, props?: any) => void, pages?: CustomPage[] }) {
+export default function Footer({ onNavigate, pages = [], socialConfig }: { onNavigate?: (view: string, props?: any) => void, pages?: CustomPage[], socialConfig?: SocialConfig }) {
   const currentYear = new Date().getFullYear();
+  const config = socialConfig || getSocialConfig();
 
   return (
     <footer className="border-t border-outline-variant bg-surface-container-lowest text-on-background py-[64px] px-margin-mobile md:px-margin-desktop text-center">
@@ -34,6 +36,13 @@ export default function Footer({ onNavigate, pages = [] }: { onNavigate?: (view:
           >
             Contact
           </button>
+        </div>
+
+        {/* Social Links */}
+        <div className="flex gap-4">
+           {config.instagram && <a href={config.instagram} target="_blank" rel="noreferrer" className="hover:text-primary">Instagram</a>}
+           {config.twitter && <a href={config.twitter} target="_blank" rel="noreferrer" className="hover:text-primary">Twitter</a>}
+           {config.facebook && <a href={config.facebook} target="_blank" rel="noreferrer" className="hover:text-primary">Facebook</a>}
         </div>
 
         {/* Divider line */}

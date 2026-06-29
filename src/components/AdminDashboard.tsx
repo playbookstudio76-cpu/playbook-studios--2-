@@ -30,11 +30,12 @@ import {
   ThumbsUp,
   FileText
 } from 'lucide-react';
-import { Product, Order, UserProfile, Category, Coupon, FloatingBanner, AnnouncementBar, SocialConfig, WhatsAppConfig, TeamMember, NewsletterEmail, UserWallet, StoreConfig, WalletAndProfitSettings, ShippingTier, DeliveryZone, ColorVariant, CustomPage } from '../types';
+import { Product, Order, UserProfile, Category, Coupon, FloatingBanner, HomepageBanner, AnnouncementBar, SocialConfig, WhatsAppConfig, TeamMember, NewsletterEmail, UserWallet, StoreConfig, WalletAndProfitSettings, ShippingTier, DeliveryZone, ColorVariant, CustomPage } from '../types';
 import { 
   getCurrentUser,
   getAllAnnouncements, saveAnnouncement, deleteAnnouncement,
   getAllBanners, saveBanner, deleteBanner,
+  getAllHomeBanners, saveHomeBanner, deleteHomeBanner,
   getSocialConfig, saveSocialConfig,
   getWhatsAppConfig, saveWhatsAppConfig,
   getAllCoupons, saveCoupon, deleteCoupon,
@@ -79,7 +80,8 @@ export default function AdminDashboard({
     | 'orders'
     | 'customers'
     | 'categories'
-    | 'banners'
+    | 'notifications'
+    | 'homepage_banners'
     | 'coupons'
     | 'socials'
     | 'merch_mail'
@@ -129,6 +131,7 @@ export default function AdminDashboard({
     setShippingTiers(getShippingTiers());
     setDeliveryZones(getDeliveryZones());
     setCustomPagesList(getCustomPages());
+    setHomeBannersList(getAllHomeBanners());
   }, []);
 
   // Form Field parameters for product creation / editing
@@ -380,8 +383,14 @@ export default function AdminDashboard({
 
   // --- SUB-STATES FOR THE NEWLY SUPPORTED ADMIN MODULES ---
   
-  // 1. Floating Banners
+  // 1. Floating Banners (Notifications)
   const [bannersList, setBannersList] = useState<FloatingBanner[]>(() => getAllBanners());
+  // 1b. Homepage Banners
+  const [homeBannersList, setHomeBannersList] = useState<HomepageBanner[]>(() => getAllHomeBanners());
+  const [homeBanTitle, setHomeBanTitle] = useState('');
+  const [homeBanImageUrl, setHomeBanImageUrl] = useState('');
+  const [homeBanLink, setHomeBanLink] = useState('');
+  const [homeBanActive, setHomeBanActive] = useState(true);
   const [banTitle, setBanTitle] = useState('');
   const [banText, setBanText] = useState('');
   const [banLink, setBanLink] = useState('');
@@ -798,9 +807,10 @@ The Playbook Studios Atelier Team`);
           { id: 'orders', name: 'Orders', icon: <PackageCheck className="w-3.5 h-3.5" /> },
           { id: 'customers', name: 'Customers', icon: <Users className="w-3.5 h-3.5" /> },
           { id: 'categories', name: 'Categories', icon: <FolderPlus className="w-3.5 h-3.5" /> },
-          { id: 'banners', name: 'Banners', icon: <Sliders className="w-3.5 h-3.5" /> },
+          { id: 'notifications', name: 'Notifications', icon: <Sliders className="w-3.5 h-3.5" /> },
           { id: 'coupons', name: 'Coupons', icon: <Tags className="w-3.5 h-3.5" /> },
           { id: 'announcements', name: 'Bars', icon: <Volume2 className="w-3.5 h-3.5" /> },
+          { id: 'homepage_banners', name: 'Banners', icon: <Layers className="w-3.5 h-3.5" /> },
           { id: 'socials', name: 'Socials', icon: <Link2 className="w-3.5 h-3.5" /> },
           { id: 'whatsapp', name: 'WhatsApp', icon: <Smartphone className="w-3.5 h-3.5" /> },
           { id: 'merch_mail', name: 'Merch Mail', icon: <Mail className="w-3.5 h-3.5" /> },
@@ -1150,7 +1160,21 @@ The Playbook Studios Atelier Team`);
 
                 {/* Multiple Images URLs commas split */}
                 <div className="relative">
-                  <label className="font-label-caps text-[9px] text-secondary tracking-widest block uppercase mb-1">Uploaded Image URLs (Populated via Cloudinary Only)</label>
+                  <label className="font-label-caps text-[9px] text-secondary tracking-widest block uppercase mb-1">Uploaded Images List</label>
+                  
+                  {/* Image List Preview */}
+                  <div className="flex flex-wrap gap-2 mb-2 p-2 bg-neutral-50 border">
+                    {formImagesText.split(',').filter(url => url.trim()).map((url, i) => (
+                      <div key={i} className="relative group">
+                        <img src={url.trim()} className="w-16 h-16 object-cover border" />
+                        <button type="button" onClick={() => {
+                           const urls = formImagesText.split(',').filter(u => u.trim() !== url.trim());
+                           setFormImagesText(urls.join(', '));
+                        }} className="absolute top-0 right-0 bg-red-500 text-white p-1 text-[8px] opacity-0 group-hover:opacity-100 transition">X</button>
+                      </div>
+                    ))}
+                  </div>
+
                   <input
                     type="text"
                     required
@@ -2159,8 +2183,8 @@ The Playbook Studios Atelier Team`);
         </div>
       )}
 
-      {/* 2. FLOATING BANNERS MANAGEMENT PANEL */}
-      {activeAdminTab === 'banners' && (
+      {/* 2. NOTIFICATIONS MANAGEMENT PANEL */}
+      {activeAdminTab === 'notifications' && (
         <div className="space-y-8">
           <div className="border-b border-outline-variant pb-4">
             <h1 className="font-display-lg text-2xl tracking-tight text-primary uppercase font-medium">Floating Banners Manager</h1>
@@ -2309,6 +2333,53 @@ The Playbook Studios Atelier Team`);
                   No floating banners created.
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2b. HOMEPAGE BANNERS MANAGEMENT PANEL */}
+      {activeAdminTab === 'homepage_banners' && (
+        <div className="space-y-8">
+          <div className="border-b border-outline-variant pb-4">
+            <h1 className="font-display-lg text-2xl tracking-tight text-primary uppercase font-medium">Homepage Banners Manager</h1>
+            <p className="font-body-md text-xs text-secondary mt-1">Manage hero sliding banners displayed on homepage.</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="border border-outline-variant p-6 bg-surface-container-lowest space-y-4">
+              <h3 className="font-label-caps text-xs font-bold uppercase tracking-wider text-primary">Add Homepage Banner</h3>
+              <div className="space-y-3 font-mono text-xs">
+                <input type="text" placeholder="Title" value={homeBanTitle} onChange={(e) => setHomeBanTitle(e.target.value)} className="bg-white border p-2 w-full"/>
+                <input type="text" placeholder="Image URL" value={homeBanImageUrl} onChange={(e) => setHomeBanImageUrl(e.target.value)} className="bg-white border p-2 w-full"/>
+                <input type="text" placeholder="Link URL" value={homeBanLink} onChange={(e) => setHomeBanLink(e.target.value)} className="bg-white border p-2 w-full"/>
+                <label className="flex items-center space-x-2">
+                  <input type="checkbox" checked={homeBanActive} onChange={(e) => setHomeBanActive(e.target.checked)} />
+                  <span>Active</span>
+                </label>
+                <button onClick={async () => {
+                  if (!homeBanTitle || !homeBanImageUrl) return;
+                  const newB: HomepageBanner = {
+                    id: 'hban_' + Math.random().toString(36).substr(2, 9),
+                    title: homeBanTitle,
+                    imageUrl: homeBanImageUrl,
+                    linkUrl: homeBanLink,
+                    isActive: homeBanActive,
+                    createdAt: new Date().toISOString()
+                  };
+                  await saveHomeBanner(newB);
+                  setHomeBannersList(getAllHomeBanners());
+                  setHomeBanTitle(''); setHomeBanImageUrl(''); setHomeBanLink('');
+                }} className="w-full bg-primary text-white py-2">Save Banner</button>
+              </div>
+            </div>
+            <div className="lg:col-span-2 grid grid-cols-1 gap-4">
+              {homeBannersList.map(b => (
+                <div key={b.id} className="border p-4 flex justify-between items-center">
+                  <span>{b.title}</span>
+                  <button onClick={async () => { await deleteHomeBanner(b.id); setHomeBannersList(getAllHomeBanners()); }} className="text-red-500">Delete</button>
+                </div>
+              ))}
             </div>
           </div>
         </div>
